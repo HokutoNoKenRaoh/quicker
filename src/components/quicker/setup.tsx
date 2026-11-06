@@ -8,7 +8,7 @@ import { VisibilityPicker } from "./open-lobbies";
 import { QuestionCountPicker } from "./question-count";
 import { RacerAvatar } from "./racer-avatar";
 
-// Before Hızlı başla / Lobi kur: the question count, the bot slots and (a lobby) who sees it. The button that leads on
+// Before Quick start / Create lobby: the question count, the bot slots and (a lobby) who sees it. The button that leads on
 // sits in the question card under it.
 export function Setup({
   lobby,
@@ -30,14 +30,14 @@ export function Setup({
   onQuestions: (count: QuestionCount) => void;
   visibility: Visibility;
   onVisibility: (v: Visibility) => void;
-  /** The first-time "Nasıl oynanır?" card. */
+  /** The first-time "How to play" card. */
   intro?: React.ReactNode;
   error: string | null;
 }) {
   return (
     <section className="card p-4 md:p-6 w-full max-w-xl mx-auto overflow-y-auto space-y-5 [--hy-avatar:36px]">
       <div className="flex justify-between items-center gap-3">
-        <h2 className="text-lg font-bold">{lobby ? "Lobi kur" : "Hızlı başla"}</h2>
+        <h2 className="text-lg font-bold">{lobby ? "Create lobby" : "Quick start"}</h2>
         <span className="flex items-center gap-2 min-w-0">
           <RacerAvatar view={player.avatar} ring />
           <span className="text-sm font-semibold truncate">{player.name}</span>
@@ -54,9 +54,9 @@ export function Setup({
       {lobby && <VisibilityPicker value={visibility} onChange={onVisibility} />}
       <p className="text-xs text-muted">
         {lobby
-          ? "Lobiyi kurunca bir davet bağlantısı alırsın; lobiye en çok 6 yarışçı girer (gelen kişiler botların yerini alır)."
-          : "Başla'ya basınca klavye açılır ve 5 saniyelik geri sayım başlar."}{" "}
-        Yarış başladıktan sonra durmaz.
+          ? "Creating the lobby gives you an invite link; up to 6 racers fit in a lobby (people who join take the bots' places)."
+          : "Press Start and a 5-second countdown begins."}{" "}
+        Once a race starts it doesn't stop.
       </p>
     </section>
   );

@@ -1,57 +1,59 @@
 # quicker
 
-Toplama çıkarma sorularını en hızlı çözenin kazandığı, sunucuda yürüyen çok oyunculu bir hesap yarışı. Botlara karşı
-hemen yarışabilir ya da bir lobi kurup arkadaşlarını davet bağlantısıyla çağırabilirsin.
+A multiplayer mental-math race that runs on the server: whoever solves the addition and subtraction questions fastest
+wins. Race the bots right away, or create a lobby and invite friends with a link.
 
 - Next.js 16 (App Router), React 19, Tailwind CSS 4
-- Veritabanı yok, hesap yok: herkes misafir olarak oynar
-- Yarışı sunucu yönetir: sorular, süre, puan, botlar ve sıralama sunucuda belirlenir; tarayıcı yalnızca yazılan cevabı gönderir
-- Canlı durum Server-Sent Events ile gelir, cevaplar POST ile gider
+- No database, no accounts: everyone plays as a guest
+- The server runs the race: questions, timing, points, bots and placings are decided on the server; the browser only
+  sends the typed answers
+- Live state arrives over Server-Sent Events, answers go out as POST requests
 
-## Çalıştırma
+## Getting started
 
-Node.js 20.9 veya üstü gerekir.
+Requires Node.js 20.9 or later.
 
 ```bash
 npm install
-cp .env.example .env.local   # QUICKER_GUEST_SECRET'ı doldur (32+ karakter)
+cp .env.example .env.local   # fill in QUICKER_GUEST_SECRET (32+ characters)
 npm run dev                  # http://localhost:3000
 ```
 
-Üretim için:
+For production:
 
 ```bash
 npm run build
 npm run start
 ```
 
-## Ortam değişkenleri
+## Environment variables
 
-| Değişken | Gerekli | Açıklama |
+| Variable | Required | Description |
 | --- | --- | --- |
-| `QUICKER_GUEST_SECRET` | Evet | Misafir çerezini imzalar; tarayıcı lobideki yerini bununla geri bulur. En az 32 karakter. |
-| `QUICKER_TRUST_PROXY` | Hayır | Uygulama `X-Real-IP` / `X-Forwarded-For` yazan bir ters vekilin arkasındaysa `true`. Açıkken ağ başına sınırlar (lobi başına kişi, istek sınırları) çalışır. Doğrudan erişimde boş bırak: başlıklar taklit edilebilir. |
+| `QUICKER_GUEST_SECRET` | Yes | Signs the guest cookie a browser uses to find its lobby seat again. At least 32 characters. |
+| `QUICKER_TRUST_PROXY` | No | Set to `true` when the app runs behind a reverse proxy that sets `X-Real-IP` / `X-Forwarded-For`. This turns on the per-network limits (people per lobby, request limits). Leave it unset when the app is reached directly: those headers can be forged. |
 
-## Önemli notlar
+## Notes
 
-- **Tek süreç:** Odalar bellekte tutulur. Uygulamayı tek bir `next start` süreci olarak çalıştır; birden çok kopya ya da sunucusuz (serverless) dağıtım odaları paylaşamaz. Yeniden başlatma süren yarışları düşürür.
-- **Ters vekil:** SSE akışı için vekilin yanıtı tamponlamaması gerekir (`X-Accel-Buffering: no` gönderilir).
+- **Single process:** rooms live in memory. Run the app as one `next start` process; several instances or a
+  serverless deployment can't share rooms. A restart drops the races in progress.
+- **Reverse proxy:** the proxy must not buffer the SSE stream (the app sends `X-Accel-Buffering: no`).
 
-## Klasörler
+## Project layout
 
 ```
-src/lib/engine.ts            yarış kuralları (saf TypeScript: sorular, puan, botlar)
-src/lib/server/registry.ts   bellekteki oda kaydı ve 250 ms'lik saat
-src/app/api/quicker/*        akış (SSE), cevap, lobi ve katılma uçları
-src/components/quicker/*     oyun ekranı, lobi, tuş takımı, geri bildirim
+src/lib/engine.ts            race rules (pure TypeScript: questions, points, bots)
+src/lib/server/registry.ts   the in-memory room registry and its 250 ms clock
+src/app/api/quicker/*        stream (SSE), answer, lobby and join endpoints
+src/components/quicker/*     game screen, lobby, keypad, feedback
 ```
 
-## Lisans
+## License
 
-[PolyForm Noncommercial 1.0.0](LICENSE). Kişisel, eğitim ve ticari olmayan kullanım serbesttir.
+[PolyForm Noncommercial 1.0.0](LICENSE). Personal, educational and other noncommercial use is free.
 
-**Ticari kullanım için izin alın.**
+**Commercial use requires permission.**
 
 ---
 
-[GameKodBank için yapıldı](https://gamekodbank.com)
+[Made for GameKodBank](https://gamekodbank.com)

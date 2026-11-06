@@ -17,13 +17,13 @@ export const botLevelsSchema = z.array(z.enum(BOT_LEVEL_KEYS as [BotLevel, ...Bo
 export const questionCountSchema = z.custom<QuestionCount>(isQuestionCount);
 export const optionalQuestionCount = questionCountSchema.optional().transform((n): QuestionCount => n ?? DEFAULT_QUESTIONS);
 
-/** The person making the request: always a guest ("Misafir"), known again by the browser's signed cookie. */
+/** The person making the request: always a guest ("Guest"), known again by the browser's signed cookie. */
 export async function currentPlayer() {
   const [ip, browser] = await Promise.all([getClientIp(), guestId()]);
   return {
     ip,
     browser,
-    member: () => newMember({ name: "Misafir", avatar: letterAvatar("Misafir"), ip, guestKey: browser }),
+    member: () => newMember({ name: "Guest", avatar: letterAvatar("Guest"), ip, guestKey: browser }),
   };
 }
 

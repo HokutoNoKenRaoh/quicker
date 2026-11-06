@@ -2,8 +2,8 @@
 
 import { QUESTION_COUNTS, type QuestionCount } from "@/lib/engine";
 
-// "Soru sayısı" (10–30): the setup screen, the lobby (host only; others see it) and the leaderboards' filter.
-export function QuestionCountPicker({ value, onChange, label = "Soru sayısı", id = "hy-questions" }: { value: number; onChange?: (count: QuestionCount) => void; label?: string; id?: string }) {
+// "Questions" (10–30): the setup screen and the lobby (host only; others see it).
+export function QuestionCountPicker({ value, onChange, label = "Questions", id = "hy-questions" }: { value: number; onChange?: (count: QuestionCount) => void; label?: string; id?: string }) {
   if (!onChange) {
     return (
       <p className="text-sm">

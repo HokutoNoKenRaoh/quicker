@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RoomView } from "@/lib/server/registry";
 
-// The browser side of a server-run race: the room's event stream (src/app/api/quicker/akis), the
+// The browser side of a server-run race: the room's event stream (src/app/api/quicker/stream), the
 // server clock offset, and the answers sent one at a time (in order, so the server never sees question 5 before 4).
 // The browser only sends typed answers; score, time and placing come from the server. After the first stream message
 // (the full state) the server leaves out what hasn't changed (`d`: the member list and next questions when they are the
@@ -15,7 +15,7 @@ const RECONNECT_MS = 2000;
 
 export type Seat = { roomId: string; token: string; key: string };
 /** Removed from a lobby by its host, or moved to a room in another window. */
-type RemovedReason = "ATILDI" | "BASKA_ODA";
+type RemovedReason = "KICKED" | "OTHER_ROOM";
 /** One of the player's next questions (the race's, or the replacement after a pass). */
 export type AheadQuestion = RoomView["ahead"][number];
 export type AnswerReply =
@@ -36,7 +36,7 @@ export async function post<T>(path: string, body: unknown): Promise<T | { ok: fa
     const res = await fetch(`${API}/${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), cache: "no-store" });
     return (await res.json()) as T;
   } catch {
-    return { ok: false, message: "Bağlantı kurulamadı." };
+    return { ok: false, message: "Could not connect." };
   }
 }
 
@@ -56,12 +56,12 @@ function merge(prev: RoomView | null, msg: StreamState): RoomView | null {
 
 /** Leaving without waiting for an answer (also works while the page is closing). */
 export function leaveSeat(seat: Seat) {
-  const body = JSON.stringify({ oda: seat.roomId, t: seat.token });
+  const body = JSON.stringify({ room: seat.roomId, token: seat.token });
   // text/plain: a JSON-typed beacon is refused by some browsers; the route parses the body as JSON either way.
   try {
-    if (navigator.sendBeacon?.(`${API}/ayril`, new Blob([body], { type: "text/plain" }))) return;
+    if (navigator.sendBeacon?.(`${API}/leave`, new Blob([body], { type: "text/plain" }))) return;
   } catch {}
-  void fetch(`${API}/ayril`, { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
+  void fetch(`${API}/leave`, { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
 }
 
 export function useRace(seat: Seat | null) {
@@ -91,7 +91,7 @@ export function useRace(seat: Seat | null) {
       es = null;
     };
     const connect = () => {
-      es = new EventSource(`${API}/akis?oda=${encodeURIComponent(seat.roomId)}&t=${encodeURIComponent(seat.token)}`);
+      es = new EventSource(`${API}/stream?room=${encodeURIComponent(seat.roomId)}&token=${encodeURIComponent(seat.token)}`);
       // The last full state of this stream (every new connection starts with a full one).
       let last: RoomView | null = null;
       es.onmessage = (e) => {
@@ -111,7 +111,7 @@ export function useRace(seat: Seat | null) {
           return stop();
         }
         if (data.t === "removed") {
-          setRemoved({ roomId: seat.roomId, reason: (data as { reason?: RemovedReason }).reason ?? "ATILDI" });
+          setRemoved({ roomId: seat.roomId, reason: (data as { reason?: RemovedReason }).reason ?? "KICKED" });
           return stop();
         }
         if (data.t === "state") {
@@ -121,7 +121,7 @@ export function useRace(seat: Seat | null) {
           const sample = state.serverNow - Date.now();
           offset.current = offset.current === null ? sample : Math.max(offset.current, sample);
           setView(state);
-          if (state.phase === "BITTI" && state.results?.mine) setFinished(state);
+          if (state.phase === "FINISHED" && state.results?.mine) setFinished(state);
         }
       };
       // EventSource reconnects by itself after a dropped connection (the server sends the full state again), but
@@ -144,15 +144,15 @@ export function useRace(seat: Seat | null) {
   const sendAnswer = useCallback(
     (raceId: string, index: number, answer: string, onReply: (r: AnswerReply) => void) => {
       if (!seat) return;
-      queue.current = queue.current.then(async () => onReply((await post<AnswerReply>("cevap", { oda: seat.roomId, t: seat.token, raceId, index, answer })) as AnswerReply));
+      queue.current = queue.current.then(async () => onReply((await post<AnswerReply>("answer", { room: seat.roomId, token: seat.token, raceId, index, answer })) as AnswerReply));
     },
     [seat]
   );
-  /** "Pas" on question `index` (in the same queue, after the answers typed before it). */
+  /** "Pass" on question `index` (in the same queue, after the answers typed before it). */
   const sendPass = useCallback(
     (raceId: string, index: number, onReply: (r: AnswerReply) => void) => {
       if (!seat) return;
-      queue.current = queue.current.then(async () => onReply((await post<AnswerReply>("cevap", { oda: seat.roomId, t: seat.token, raceId, index, pas: true })) as AnswerReply));
+      queue.current = queue.current.then(async () => onReply((await post<AnswerReply>("answer", { room: seat.roomId, token: seat.token, raceId, index, pass: true })) as AnswerReply));
     },
     [seat]
   );

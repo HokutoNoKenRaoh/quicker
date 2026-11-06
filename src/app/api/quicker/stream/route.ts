@@ -42,7 +42,7 @@ export async function GET(request: Request) {
     return new Response(stream, { headers: HEADERS });
   }
 
-  const found = roomAndMember(url.searchParams.get("oda"), url.searchParams.get("t"));
+  const found = roomAndMember(url.searchParams.get("room"), url.searchParams.get("token"));
   if (!found) {
     return new Response(enc.encode(`retry: 600000\ndata: ${JSON.stringify({ t: "gone" })}\n\n`), { headers: HEADERS });
   }
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
       });
       heartbeat = setInterval(() => {
         try {
-          if (!closed) controller.enqueue(enc.encode(": nabız\n\n"));
+          if (!closed) controller.enqueue(enc.encode(": heartbeat\n\n"));
         } catch {
           close();
         }

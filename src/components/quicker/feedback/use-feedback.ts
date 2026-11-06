@@ -11,9 +11,9 @@ import { bump, headShake, nudge, rankColor, rankPosition, useRankPulse } from ".
 // seconds and the final stretch. Sounds, the rank pulse, the leader's bump / nudge, the combo tier label and the
 // sparks all start here; settings decide what runs.
 
-/** Combo tiers (tenths): ×1,0–1,4 → 0, ×1,5–1,9 → 1 "Seri!", ×2,0–2,4 → 2 "Alev!", ×2,5 → 3 "Durdurulamaz!". */
+/** Combo tiers (tenths): ×1.0–1.4 → 0, ×1.5–1.9 → 1 "Streak!", ×2.0–2.4 → 2 "On fire!", ×2.5 → 3 "Unstoppable!". */
 export const comboTier = (tenths: number) => (tenths >= 25 ? 3 : tenths >= 20 ? 2 : tenths >= 15 ? 1 : 0);
-const TIER_LABELS = ["", "Seri!", "Alev!", "Durdurulamaz!"];
+const TIER_LABELS = ["", "Streak!", "On fire!", "Unstoppable!"];
 /** Answers faster than this raise the combo (the engine's fastest tier). */
 const FAST_MS = 1500;
 const COMBO_RESET_MS = 3000;
@@ -146,7 +146,7 @@ export function useFeedback(input: Input) {
     if (settings.shake) headShake(cardEl());
   };
 
-  /** A pass ("Pas"): the streak and the combo are gone (as on the server), a soft flip; no shake, it wasn't a mistake. */
+  /** A pass: the streak and the combo are gone (as on the server), a soft flip; no shake, it wasn't a mistake. */
   const skip = (inRace: boolean) => {
     if (inRace) Object.assign(raceState(), { streak: 0, combo: COMBO_START, tier: 0 });
     if (latest.current.settings.sound) playSkip();

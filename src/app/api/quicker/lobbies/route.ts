@@ -2,7 +2,7 @@ import { getClientIp } from "@/lib/server/client-ip";
 import { openLobbies } from "@/lib/server/registry";
 import { fail, json } from "@/lib/server/http";
 
-// "Açık lobiler": the public lobbies waiting for players (GET; the page polls it while the list is open, the button's
+// "Open lobbies": the public lobbies waiting for players (GET; the page polls it while the list is open, the button's
 // count less often). Only what the list shows; joining goes through the lobby's own link. An in-memory limit per IP.
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,6 @@ function limitOk(ip: string, now = Date.now()) {
 
 export async function GET() {
   const ip = await getClientIp();
-  if (ip !== "unknown" && !limitOk(ip)) return fail("Çok sık yenilendi. Biraz bekle.", 429);
+  if (ip !== "unknown" && !limitOk(ip)) return fail("Refreshed too often. Wait a moment.", 429);
   return json({ ok: true, lobbies: openLobbies() });
 }

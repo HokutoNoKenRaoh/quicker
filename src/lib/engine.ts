@@ -26,8 +26,8 @@ const MAX_LEVEL_POINTS = 200;
 /** Finishing every question: this many points per question at 1 s per answer (twice that at 0,5 s, half at 2 s). */
 export const SPEED_POINTS = 200;
 /**
- * The combo (in tenths: ×1,0 → ×2,5) is the streak behind the effects and sounds, never the points: +0.1 after every
- * answer faster than FAST_ANSWER_MS, back to ×1,0 after one of COMBO_RESET_MS or slower, a mistake or a pass.
+ * The combo (in tenths: ×1.0 → ×2.5) is the streak behind the effects and sounds, never the points: +0.1 after every
+ * answer faster than FAST_ANSWER_MS, back to ×1.0 after one of COMBO_RESET_MS or slower, a mistake or a pass.
  */
 export const COMBO_START = 10;
 const COMBO_STEP = 1;
@@ -42,7 +42,7 @@ const COMBO_RESET_MS = 3000;
  */
 export const WRONG_LOCK_MS = 350;
 /**
- * "Pas" replaces the racer's current question with a new one of the same level (for that racer only: the race still
+ * "Pass" replaces the racer's current question with a new one of the same level (for that racer only: the race still
  * needs every question answered), resets the combo and locks input this long. The next answer's time still runs from
  * the previous accepted answer, so a pass never earns a fast-answer score: it is a way out of a question, not a way
  * to pick easy ones.
@@ -84,10 +84,10 @@ const ANSWER_MAX_IN_WINDOW = 2;
 
 /** Bot difficulty: normal response time per question (ms) before the per-operand delay. Lower mean = harder. */
 export const BOT_LEVELS = {
-  KOLAY: { label: "Kolay", meanMs: 4500, sdMs: 1200 },
-  ORTA: { label: "Orta", meanMs: 3000, sdMs: 800 },
-  ZOR: { label: "Zor", meanMs: 2000, sdMs: 500 },
-  USTA: { label: "Usta", meanMs: 1300, sdMs: 300 },
+  EASY: { label: "Easy", meanMs: 4500, sdMs: 1200 },
+  MEDIUM: { label: "Medium", meanMs: 3000, sdMs: 800 },
+  HARD: { label: "Hard", meanMs: 2000, sdMs: 500 },
+  EXPERT: { label: "Expert", meanMs: 1300, sdMs: 300 },
 } as const;
 export type BotLevel = keyof typeof BOT_LEVELS;
 export const BOT_LEVEL_KEYS = Object.keys(BOT_LEVELS) as BotLevel[];
@@ -100,11 +100,11 @@ const BOT_TYPO_SHARE = 0.08;
 const BOT_TYPO_MS = [400, 1000] as const;
 
 const BOT_NAMES = [
-  "HızlıKedi", "SayıAvcısı", "Matematikçi34", "ToplaÇıkar", "Kafadan", "RakamUstası", "Hesapçı06", "ŞimşekParmak",
-  "ZihinKoşucu", "Artıİşareti", "SıfırHata", "KlavyeKurdu", "Sayısalcı", "HızTreni", "BeyinFırtınası", "EksiArtı",
-  "Hesap35", "ÇarpıkHesap", "YıldırımKafa", "TekCevap",
+  "QuickCat", "NumberHunter", "MathWiz42", "PlusMinus", "MentalMath", "DigitMaster", "Calc99", "LightningFinger",
+  "MindRunner", "PlusSign", "ZeroErrors", "KeyboardWolf", "Numerix", "SpeedTrain", "Brainstorm", "MinusPlus",
+  "Sum35", "CrookedSum", "ThunderHead", "OneAnswer",
 ] as const;
-const BOT_AVATARS = ["robot", "uzayli", "hayalet", "roket", "simsek", "alev", "zar", "mantar", "gezegen", "kupa", "yildiz", "mucevher"] as const;
+const BOT_AVATARS = ["robot", "alien", "ghost", "rocket", "bolt", "flame", "dice", "mushroom", "planet", "cup", "star", "gem"] as const;
 
 /** People + bots in one race. */
 export const MAX_RACERS = 6;
@@ -263,7 +263,7 @@ export function answeredPoints(answered: number) {
  */
 export const finishBonus = (ms: number, count: number) => Math.round((SPEED_POINTS * count * count * 1000) / Math.max(ms, 1));
 
-/** Points of one correct answer and the combo after it (combo in tenths: 17 = ×1,7); `graceMs` widens the combo's limits. */
+/** Points of one correct answer and the combo after it (combo in tenths: 17 = ×1.7); `graceMs` widens the combo's limits. */
 export function scoreAnswer(responseMs: number, questionNumber: number, comboTenths: number, graceMs = 0) {
   const fast = responseMs < FAST_ANSWER_MS + graceMs;
   const reset = responseMs >= COMBO_RESET_MS + graceMs;
@@ -468,7 +468,7 @@ export function currentQuestion(state: RaceState, r: Racer): Question | undefine
 const idHash = (id: string) => [...id].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0, 0x811c9dc5);
 
 /**
- * A person's "Pas" on question `index` at race time `now`: a new question of the same level (not the passed one and
+ * A person's "Pass" on question `index` at race time `now`: a new question of the same level (not the passed one and
  * not its neighbours) replaces it for this racer, the combo resets and input waits `lockMs`. Progress doesn't move.
  * Out of order, during a lock or after the end it changes nothing.
  */

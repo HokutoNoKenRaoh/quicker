@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-/** "Oyundan çıkılsın mı?" during the countdown / race (Escape or "Devam et" keeps playing). */
+/** "Leave the game?" during the countdown / race (Escape or "Keep playing" keeps playing). */
 export function ConfirmExit({ lobby, onYes, onNo }: { lobby: boolean; onYes: () => void; onNo: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const no = useRef<HTMLButtonElement>(null);
@@ -19,13 +19,13 @@ export function ConfirmExit({ lobby, onYes, onNo }: { lobby: boolean; onYes: () 
         dialog.current?.close();
         onNo();
       }}
-      // color-guard-allow: the dimming backdrop is dark in every theme and mode
+      // The dimming backdrop is dark in every mode.
       className="card m-auto max-w-xs w-[calc(100%-2rem)] p-5 backdrop:bg-black/50"
     >
       <h2 id="hy-exit-title" className="text-lg font-semibold mb-1">
-        Oyundan çıkılsın mı?
+        Leave the game?
       </h2>
-      <p className="text-sm text-muted mb-4">Yarış durmaz; çıkarsan yarışta &quot;ayrıldı&quot; görünürsün{lobby ? " ve lobiden çıkarsın" : ""}.</p>
+      <p className="text-sm text-muted mb-4">The race goes on; if you leave, you show as &quot;left&quot;{lobby ? " and you leave the lobby" : ""}.</p>
       <div className="flex justify-end gap-2">
         <button
           ref={no}
@@ -37,10 +37,10 @@ export function ConfirmExit({ lobby, onYes, onNo }: { lobby: boolean; onYes: () 
           }}
           className="btn-secondary px-4 py-2 text-sm"
         >
-          Devam et
+          Keep playing
         </button>
         <button type="button" onClick={onYes} className="btn-danger px-4 py-2 text-sm">
-          Çık
+          Leave
         </button>
       </div>
     </dialog>

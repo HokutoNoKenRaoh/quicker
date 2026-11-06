@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: QUICKER.title, description: QUICKER.d
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="tr">
+    <html lang="en">
       <body>{children}</body>
     </html>
   );

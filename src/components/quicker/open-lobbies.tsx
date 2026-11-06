@@ -7,12 +7,12 @@ import type { OpenLobby, Visibility } from "@/lib/server/registry";
 import { lobbyPath } from "@/lib/game";
 import { RacerAvatar } from "./racer-avatar";
 
-// "Açık lobiler" on the game page: the public lobbies waiting for players (GET ../lobiler), refreshed every 4 s while
-// the list is open and the tab is visible, the button's count every 15 s. Katıl opens the lobby's own link, so joining
-// works exactly as with an invite (seat rules, a guest's cookie). Also the Herkese açık / Sadece davetle switch of
-// Lobi kur and the lobby.
+// "Open lobbies" on the game page: the public lobbies waiting for players (GET ../lobiler), refreshed every 4 s while
+// the list is open and the tab is visible, the button's count every 15 s. Join opens the lobby's own link, so joining
+// works exactly as with an invite (seat rules, a guest's cookie). Also the Public / Invite only switch of
+// Create lobby and the lobby.
 
-const API = "/api/quicker/lobiler";
+const API = "/api/quicker/lobbies";
 const OPEN_MS = 4000;
 const CLOSED_MS = 15_000;
 
@@ -52,38 +52,38 @@ export function useOpenLobbies(open: boolean, paused = false) {
   return lobbies;
 }
 
-/** "+3 bot (Orta, Zor…)" */
+/** "+3 bots (Medium, Hard…)" */
 function botsText(bots: BotLevel[]) {
-  if (!bots.length) return "bot yok";
+  if (!bots.length) return "no bots";
   const labels = [...new Set(bots)].map((l) => BOT_LEVELS[l].label);
-  return `+${bots.length} bot (${labels.slice(0, 2).join(", ")}${labels.length > 2 ? "…" : ""})`;
+  return `+${bots.length} ${bots.length === 1 ? "bot" : "bots"} (${labels.slice(0, 2).join(", ")}${labels.length > 2 ? "…" : ""})`;
 }
 
-const openText = (ms: number) => (ms < 60_000 ? "yeni" : `${Math.round(ms / 60_000)} dk`);
+const openText = (ms: number) => (ms < 60_000 ? "new" : `${Math.round(ms / 60_000)} min`);
 
 export function OpenLobbiesPanel({ lobbies, create }: { lobbies: OpenLobby[] | null; create: React.ReactNode }) {
   return (
     <section id="hy-open-lobbies" aria-labelledby="hy-open-lobbies-title" className="space-y-3 [--hy-avatar:32px]">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="hy-open-lobbies-title" className="font-semibold">
-          Açık lobiler
+          Open lobbies
         </h2>
-        <span className="text-xs text-muted">Kendiliğinden yenilenir</span>
+        <span className="text-xs text-muted">Refreshes by itself</span>
       </div>
       {lobbies === null ? (
         <p className="text-sm text-muted" role="status">
-          Yükleniyor…
+          Loading…
         </p>
       ) : lobbies.length === 0 ? (
         <div className="space-y-3">
-          <p className="text-sm text-muted">Şu anda açık lobi yok. Sen bir tane kur, başkaları burada görsün.</p>
+          <p className="text-sm text-muted">No open lobbies right now. Create one and others will see it here.</p>
           {create}
         </div>
       ) : (
         // No live region on the rows (the poll re-renders them every 4 s): the count is announced instead. The box keeps
         // about four rows' height and scrolls beyond them, so rows coming and going don't move the page below.
         <>
-        <p className="sr-only" role="status">{`${lobbies.filter((l) => !l.racing && !l.full).length} açık lobi`}</p>
+        <p className="sr-only" role="status">{`${lobbies.filter((l) => !l.racing && !l.full).length} open lobbies`}</p>
         <ul className="divide-y divide-border border border-border rounded-md min-h-[8.5rem] max-h-[17rem] overflow-y-auto">
           {lobbies.map((l) => (
             <li key={l.code} className={`flex items-center gap-3 p-3 ${l.racing || l.full ? "opacity-60" : ""}`}>
@@ -91,16 +91,16 @@ export function OpenLobbiesPanel({ lobbies, create }: { lobbies: OpenLobby[] | n
               <div className="min-w-0 flex-1">
                 <p className="font-semibold truncate">{l.host.name}</p>
                 <p className="text-xs text-muted tabular-nums">
-                  {l.people}/{MAX_RACERS} kişi · {botsText(l.bots)} · {l.questionCount} soru · {openText(l.openMs)}
+                  {l.people}/{MAX_RACERS} people · {botsText(l.bots)} · {l.questionCount} questions · {openText(l.openMs)}
                 </p>
               </div>
               {l.racing ? (
-                <span className="badge-neutral px-2 py-1 text-xs shrink-0">Yarış sürüyor</span>
+                <span className="badge-neutral px-2 py-1 text-xs shrink-0">Racing</span>
               ) : l.full ? (
-                <span className="badge-neutral px-2 py-1 text-xs shrink-0">Dolu</span>
+                <span className="badge-neutral px-2 py-1 text-xs shrink-0">Full</span>
               ) : (
                 <Link href={lobbyPath(l.code)} className="btn-primary press px-4 py-2 text-sm font-semibold shrink-0">
-                  Katıl
+                  Join
                 </Link>
               )}
             </li>
@@ -113,17 +113,17 @@ export function OpenLobbiesPanel({ lobbies, create }: { lobbies: OpenLobby[] | n
 }
 
 const VISIBILITY = [
-  { key: "ACIK", label: "Herkese açık", note: "Açık lobiler listesinde görünür; bağlantısı olmayan da katılabilir." },
-  { key: "DAVET", label: "Sadece davetle", note: "Listede görünmez; yalnızca davet bağlantısıyla girilir." },
+  { key: "PUBLIC", label: "Public", note: "Shown under Open lobbies; anyone can join, link or not." },
+  { key: "INVITE", label: "Invite only", note: "Not listed; only the invite link gets people in." },
 ] as const;
 
-/** Herkese açık / Sadece davetle (read-only for everyone but the host). */
+/** Public / Invite only (read-only for everyone but the host). */
 export function VisibilityPicker({ value, onChange }: { value: Visibility; onChange?: (v: Visibility) => void }) {
   const current = VISIBILITY.find((v) => v.key === value)!;
-  if (!onChange) return <p className="text-sm text-muted">{current.label} lobi.</p>;
+  if (!onChange) return <p className="text-sm text-muted">{current.label} lobby.</p>;
   return (
     <fieldset className="space-y-2">
-      <legend className="text-sm font-semibold mb-2">Lobiyi kimler görsün?</legend>
+      <legend className="text-sm font-semibold mb-2">Who can see the lobby?</legend>
       <div className="grid grid-cols-2 gap-2">
         {VISIBILITY.map((v) => (
           <button

@@ -328,7 +328,7 @@
 .hy-wrong-box {
   animation: hy-wrong 0.45s ease-out;
 }
-/* "Pas" (a sideways swipe or a double tap on the question card, Tab on a keyboard): the card takes the touch itself
+/* "Pass" (a sideways swipe or a double tap on the question card, Tab on a keyboard): the card takes the touch itself
    (no scrolling, zoom, selection or callout), the new question slides in from the side the finger went (a fade with
    reduced motion), and a bar in the answer box empties while input waits (SKIP_LOCK_MS, set inline). */
 .hy-pass-zone {
@@ -353,7 +353,7 @@
   display: inline-block;
   animation: hy-pass-in 0.22s ease-out;
 }
-/* The warm-up countdown (each second pops in) and the start's "BAŞLA!" (about 600 ms); with reduced motion a fade. */
+/* The warm-up countdown (each second pops in) and the start's "GO!" (about 600 ms); with reduced motion a fade. */
 @keyframes hy-count {
   from {
     opacity: 0;

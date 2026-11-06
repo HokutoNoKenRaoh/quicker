@@ -5,8 +5,8 @@
 export const QUICKER = {
   title: "quicker",
   lang: "en",
-  description: "Toplama çıkarma sorularını en hızlı sen çöz, rakiplerini geç, bitiş çizgisine ilk sen ulaş.",
+  description: "Solve the addition and subtraction questions fastest, pass your rivals and be first over the finish line.",
 } as const;
 
 /** The invite link's path of a lobby. */
-export const lobbyPath = (code: string) => `/lobi/${code}`;
+export const lobbyPath = (code: string) => `/lobby/${code}`;

@@ -4,13 +4,13 @@ import { BOT_LEVELS, DEFAULT_QUESTIONS, MAX_RACERS, answeredPoints, finishBonus,
 // time) per question count, the question count, the bot slots and the screen keypad switch (localStorage). Storage can throw (private mode, blocked site data): every access is
 // guarded and the game works without it.
 
-const RESULTS_KEY = "quicker:sonuclar";
-const BEST_KEY = "quicker:en-iyi";
-const KEYPAD_KEY = "quicker:ekran-tuslari";
-const INTRO_KEY = "quicker:nasil-oynanir";
-const PASS_HINT_KEY = "quicker:pas-ipucu";
-const BOTS_KEY = "quicker:botlar";
-const QUESTIONS_KEY = "quicker:sorular";
+const RESULTS_KEY = "quicker:results";
+const BEST_KEY = "quicker:best";
+const KEYPAD_KEY = "quicker:screen-keys";
+const INTRO_KEY = "quicker:how-to-play";
+const PASS_HINT_KEY = "quicker:pass-hint";
+const BOTS_KEY = "quicker:bots";
+const QUESTIONS_KEY = "quicker:questions";
 
 /** `total`: the race's question count (missing in results saved before it could be chosen: 30). */
 export type StoredResult = { rank: number; points: number; correct: number; total?: number; averageMs: number | null; at: number };
@@ -81,7 +81,7 @@ export function writeQuestions(count: QuestionCount) {
   write(local, QUESTIONS_KEY, count);
 }
 
-/** "Ekran tuşları" on a touch screen that also has a keyboard / trackpad (off until switched on). */
+/** "Screen keys" on a touch screen that also has a keyboard / trackpad (off until switched on). */
 export function readKeypad(): boolean {
   return read<boolean>(local, KEYPAD_KEY, false) === true;
 }
@@ -90,7 +90,7 @@ export function writeKeypad(on: boolean) {
   write(local, KEYPAD_KEY, on);
 }
 
-/** The first-time "Nasıl oynanır?" card was dismissed (or a race was played) on this device. */
+/** The first-time "How to play" card was dismissed (or a race was played) on this device. */
 export function readIntroSeen(): boolean {
   return read<boolean>(local, INTRO_KEY, false) === true;
 }
@@ -118,4 +118,11 @@ export function writeBots(levels: BotLevel[]) {
   write(local, BOTS_KEY, levels);
 }
 
-export const seconds = (ms: number | null) => (ms === null ? "–" : `${(ms / 1000).toLocaleString("tr-TR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} sn`);
+export const seconds = (ms: number | null) => (ms === null ? "–" : `${(ms / 1000).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`);
+
+/** "1st", "2nd", "3rd", "4th"… */
+export function ordinal(n: number) {
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
+  return `${n}${suffix}`;
+}

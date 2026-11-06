@@ -26,7 +26,7 @@ import {
 
 // quicker races run on the server: one in-memory registry of rooms in the Next.js process (globalThis). Run exactly
 // one `next start` process, so this is the single source of truth; a restart drops running races and the clients
-// show "Sunucu yeniden başladı". The server owns the seed, the start time, every answer's timing, the score, the
+// show "The server restarted". The server owns the seed, the start time, every answer's timing, the score, the
 // bots, the end and the placings. Nothing the browser reports about itself (score, time, "I won") is trusted: it
 // only sends typed answers.
 
@@ -50,7 +50,7 @@ export const MAX_GUESTS_PER_IP = 2;
  * loop, and anyone may start races). A new room beyond it is refused with ROOMS_FULL.
  */
 export const MAX_ROOMS = 100;
-export const ROOMS_FULL = "Şu an çok yoğun, birazdan tekrar deneyin.";
+export const ROOMS_FULL = "It's very busy right now. Please try again in a moment.";
 /**
  * From this many rooms in memory on, one network's share is limited: a network (an IPv4 address,
  * an IPv6 /64) that already holds MAX_ROOMS_PER_IP_WHEN_BUSY rooms in use gets ROOMS_FULL for a new one, so a few
@@ -59,13 +59,13 @@ export const ROOMS_FULL = "Şu an çok yoğun, birazdan tekrar deneyin.";
 export const BUSY_ROOMS = 80;
 export const MAX_ROOMS_PER_IP_WHEN_BUSY = 3;
 
-export type RoomKind = "HIZLI" | "LOBI";
-/** A lobby listed under "Açık lobiler" (ACIK) or reachable only through its invite link (DAVET). */
-export type Visibility = "ACIK" | "DAVET";
-/** "Açık lobiler": at most this many, newest activity first, none idle for longer than OPEN_IDLE_MS. */
+export type RoomKind = "QUICK" | "LOBBY";
+/** A lobby listed under "Open lobbies" (PUBLIC) or reachable only through its invite link (INVITE). */
+export type Visibility = "PUBLIC" | "INVITE";
+/** "Open lobbies": at most this many, newest activity first, none idle for longer than OPEN_IDLE_MS. */
 const OPEN_LIST_SIZE = 20;
 const OPEN_IDLE_MS = 10 * 60_000;
-export type Phase = "LOBI" | "GERI_SAYIM" | "YARIS" | "BITTI";
+export type Phase = "LOBBY" | "COUNTDOWN" | "RACING" | "FINISHED";
 
 export interface Member {
   key: string;
@@ -173,14 +173,14 @@ export function memberOf(room: Room, token: string) {
 }
 
 /**
- * The public lobbies for "Açık lobiler" (only what the list shows: no tokens, IPs or guest keys; the code is what the
+ * The public lobbies for "Open lobbies" (only what the list shows: no tokens, IPs or guest keys; the code is what the
  * invite link already gives away). A lobby is listed while its host is connected and it isn't idle; a running race
  * or a full lobby is listed without a way in.
  */
 export function openLobbies(now = Date.now()) {
   const list: { code: string; host: { name: string; avatar: AvatarView }; people: number; bots: BotLevel[]; questionCount: number; openMs: number; racing: boolean; full: boolean; activeAt: number }[] = [];
   for (const room of reg().rooms.values()) {
-    if (room.kind !== "LOBI" || room.visibility !== "ACIK" || !room.code || now - room.activeAt > OPEN_IDLE_MS) continue;
+    if (room.kind !== "LOBBY" || room.visibility !== "PUBLIC" || !room.code || now - room.activeAt > OPEN_IDLE_MS) continue;
     const host = room.members.find((m) => m.key === room.hostKey);
     if (!host || host.streams === 0) continue;
     list.push({
@@ -190,7 +190,7 @@ export function openLobbies(now = Date.now()) {
       bots: room.botLevels,
       questionCount: room.questionCount,
       openMs: now - room.createdAt,
-      racing: room.phase !== "LOBI",
+      racing: room.phase !== "LOBBY",
       full: room.members.length >= MAX_RACERS,
       activeAt: room.activeAt,
     });
@@ -203,9 +203,9 @@ export function openLobbies(now = Date.now()) {
 
 export type OpenLobby = ReturnType<typeof openLobbies>[number];
 
-/** Host only: "Herkese açık" (listed under Açık lobiler) or "Sadece davetle" (the link only). */
+/** Host only: public (listed under Open lobbies) or invite-only (the link only). */
 export function setVisibility(room: Room, member: Member, visibility: Visibility) {
-  if (room.kind !== "LOBI" || room.hostKey !== member.key) return false;
+  if (room.kind !== "LOBBY" || room.hostKey !== member.key) return false;
   room.visibility = visibility;
   touch(room);
   return true;
@@ -228,7 +228,7 @@ function removeRoom(room: Room) {
 }
 
 /** A finished quick race nobody watches any more: roomForOneMore may close it, so it holds no place. */
-const closable = (room: Room) => room.kind === "HIZLI" && room.phase === "BITTI" && room.subscribers.size === 0;
+const closable = (room: Room) => room.kind === "QUICK" && room.phase === "FINISHED" && room.subscribers.size === 0;
 
 /**
  * Rooms in use (anything but a closable one) with at least one member from this network: the same IPv4 address, or
@@ -262,21 +262,21 @@ export function roomForOneMore(ip?: string | null): boolean {
   return true;
 }
 
-/** Hızlı başla: a room of one person and their bots; the countdown starts at once. Null: no room (roomForOneMore). */
+/** Quick start: a room of one person and their bots; the countdown starts at once. Null: no room (roomForOneMore). */
 export function createQuickRace(member: Member, botLevels: BotLevel[], questionCount: QuestionCount = DEFAULT_QUESTIONS): Room | null {
   if (!roomForOneMore(member.ip)) return null;
   const now = Date.now();
   const room: Room = {
     id: randomId(9),
     code: null,
-    kind: "HIZLI",
+    kind: "QUICK",
     createdAt: now,
     activeAt: now,
     hostKey: member.key,
     members: [{ ...member, ready: true }],
     botLevels: botLevels.slice(0, MAX_RACERS - 1),
     questionCount,
-    phase: "LOBI",
+    phase: "LOBBY",
     raceId: null,
     startAt: null,
     race: null,
@@ -284,15 +284,15 @@ export function createQuickRace(member: Member, botLevels: BotLevel[], questionC
     endedAt: null,
     subscribers: new Set(),
     lastKey: "",
-    visibility: "DAVET",
+    visibility: "INVITE",
   };
   addRoom(room);
   startCountdown(room);
   return room;
 }
 
-/** Lobi kur: a lobby with a short code; the host adds bots and starts when the people present are ready. Null: no room. */
-export function createLobby(member: Member, botLevels: BotLevel[], questionCount: QuestionCount = DEFAULT_QUESTIONS, visibility: Visibility = "ACIK"): Room | null {
+/** Create lobby: a lobby with a short code; the host adds bots and starts when the people present are ready. Null: no room. */
+export function createLobby(member: Member, botLevels: BotLevel[], questionCount: QuestionCount = DEFAULT_QUESTIONS, visibility: Visibility = "PUBLIC"): Room | null {
   if (!roomForOneMore(member.ip)) return null;
   const now = Date.now();
   member.name = `${GUEST_NAME} 1`;
@@ -300,14 +300,14 @@ export function createLobby(member: Member, botLevels: BotLevel[], questionCount
   return addRoom({
     id: randomId(9),
     code: newCode(),
-    kind: "LOBI",
+    kind: "LOBBY",
     createdAt: now,
     activeAt: now,
     hostKey: member.key,
     members: [member],
     botLevels: botLevels.slice(0, MAX_RACERS - 1),
     questionCount,
-    phase: "LOBI",
+    phase: "LOBBY",
     raceId: null,
     startAt: null,
     race: null,
@@ -319,12 +319,12 @@ export function createLobby(member: Member, botLevels: BotLevel[], questionCount
   });
 }
 
-type JoinError = "DOLU" | "BASLADI" | "AG_DOLU";
+type JoinError = "FULL" | "STARTED" | "NETWORK_FULL";
 
 /** Whether a new person can join. */
 export function joinCheck(room: Room): { error: JoinError } | null {
-  if (room.phase === "GERI_SAYIM" || room.phase === "YARIS") return { error: "BASLADI" };
-  if (room.members.length >= MAX_RACERS) return { error: "DOLU" };
+  if (room.phase === "COUNTDOWN" || room.phase === "RACING") return { error: "STARTED" };
+  if (room.members.length >= MAX_RACERS) return { error: "FULL" };
   return null;
 }
 
@@ -334,12 +334,12 @@ export function guestSeat(room: Room, guestKey: string | undefined) {
   return room.members.find((m) => m.guestKey !== null && sameToken(m.guestKey, guestKey)) ?? null;
 }
 
-const GUEST_NAME = "Misafir";
-const sameName = (a: string, b: string) => a.toLocaleLowerCase("tr-TR") === b.toLocaleLowerCase("tr-TR");
+const GUEST_NAME = "Guest";
+const sameName = (a: string, b: string) => a.toLocaleLowerCase("en-US") === b.toLocaleLowerCase("en-US");
 
 /**
  * A person joins a lobby; people take the place of bots when the room is full (at most 6 racers). Guests (anyone with the
- * link) get "Misafir 1", "Misafir 2"… and may choose a name before they are ready (renameGuest).
+ * link) get "Guest 1", "Guest 2"… and may choose a name before they are ready (renameGuest).
  */
 export function joinLobby(room: Room, member: Member): { member: Member } | { error: JoinError } {
   const check = joinCheck(room);
@@ -348,7 +348,7 @@ export function joinLobby(room: Room, member: Member): { member: Member } | { er
   // (lib/network-key.ts); an unknown address isn't limited.
   if (member.ip !== "unknown") {
     const network = networkKey(member.ip);
-    if (room.members.filter((m) => networkKey(m.ip) === network).length >= MAX_GUESTS_PER_IP) return { error: "AG_DOLU" };
+    if (room.members.filter((m) => networkKey(m.ip) === network).length >= MAX_GUESTS_PER_IP) return { error: "NETWORK_FULL" };
   }
   let n = 1;
   while (room.members.some((m) => sameName(m.name, `${GUEST_NAME} ${n}`))) n++;
@@ -361,17 +361,17 @@ export function joinLobby(room: Room, member: Member): { member: Member } | { er
 }
 
 /** Tells a person's open screens why they are no longer in the room (before their streams close). */
-function notifyRemoved(room: Room, key: string, reason: "ATILDI" | "BASKA_ODA") {
+function notifyRemoved(room: Room, key: string, reason: "KICKED" | "OTHER_ROOM") {
   for (const s of [...room.subscribers]) if (s.memberKey === key) s.send({ t: "removed", reason });
 }
 
 /**
- * Leaving. During the countdown / race the person stays on the track greyed out ("ayrıldı") and leaves the room when
+ * Leaving. During the countdown / race the person stays on the track greyed out ("left") and leaves the room when
  * it goes back to the lobby; in a lobby they leave at once (the longest-present person becomes host; an empty room
  * closes).
  */
 export function leaveRoom(room: Room, member: Member) {
-  if ((room.phase === "GERI_SAYIM" || room.phase === "YARIS") && room.race) {
+  if ((room.phase === "COUNTDOWN" || room.phase === "RACING") && room.race) {
     room.race = leaveRace(room.race, member.key, Math.max(0, Date.now() - room.startAt!));
     member.ready = false;
     if (room.race.ended) return finishRace(room);
@@ -394,14 +394,14 @@ export function leaveOtherRooms(guestKey: string, exceptRoomId: string | null = 
     if (room.id === exceptRoomId) continue;
     const m = room.members.find((x) => x.guestKey !== null && sameToken(x.guestKey, guestKey));
     if (!m) continue;
-    notifyRemoved(room, m.key, "BASKA_ODA");
-    if ((room.phase === "GERI_SAYIM" || room.phase === "YARIS") && room.race?.racers.some((r) => r.id === m.key)) leaveRoom(room, m);
+    notifyRemoved(room, m.key, "OTHER_ROOM");
+    if ((room.phase === "COUNTDOWN" || room.phase === "RACING") && room.race?.racers.some((r) => r.id === m.key)) leaveRoom(room, m);
     else removeMember(room, m.key);
   }
 }
 
 export function setReady(room: Room, member: Member, ready: boolean) {
-  if (room.phase !== "LOBI") return false;
+  if (room.phase !== "LOBBY") return false;
   member.ready = ready;
   member.seenAt = Date.now();
   touch(room);
@@ -410,7 +410,7 @@ export function setReady(room: Room, member: Member, ready: boolean) {
 
 /** Host only: the bot slots (people + bots at most 6). */
 export function setBots(room: Room, member: Member, levels: BotLevel[]) {
-  if (room.phase !== "LOBI" || room.hostKey !== member.key) return false;
+  if (room.phase !== "LOBBY" || room.hostKey !== member.key) return false;
   room.botLevels = levels.slice(0, MAX_RACERS - room.members.length);
   touch(room);
   return true;
@@ -418,11 +418,11 @@ export function setBots(room: Room, member: Member, levels: BotLevel[]) {
 
 /** A guest's own name in the lobby (lib/display-name.ts rules, unique in the room); null when it was taken. */
 export function renameGuest(room: Room, member: Member, raw: string): string | null {
-  if (room.phase !== "LOBI" || member.ready) return "Adını hazır olmadan önce değiştirebilirsin.";
+  if (room.phase !== "LOBBY" || member.ready) return "You can change your name before you're ready.";
   const name = cleanDisplayName(raw);
   const error = displayNameError(name);
   if (error) return error;
-  if (room.members.some((m) => m.key !== member.key && sameName(m.name, name))) return "Bu ad lobide kullanılıyor.";
+  if (room.members.some((m) => m.key !== member.key && sameName(m.name, name))) return "Someone in the lobby already has this name.";
   member.name = name;
   member.avatar = letterAvatar(name);
   touch(room);
@@ -431,7 +431,7 @@ export function renameGuest(room: Room, member: Member, raw: string): string | n
 
 /** Host only: the question count of the next race. */
 export function setQuestionCount(room: Room, member: Member, count: QuestionCount) {
-  if (room.phase !== "LOBI" || room.hostKey !== member.key) return false;
+  if (room.phase !== "LOBBY" || room.hostKey !== member.key) return false;
   room.questionCount = count;
   touch(room);
   return true;
@@ -439,9 +439,9 @@ export function setQuestionCount(room: Room, member: Member, count: QuestionCoun
 
 /** Host only: removes a person from the lobby. */
 export function kick(room: Room, host: Member, key: string) {
-  if (room.phase !== "LOBI" || room.hostKey !== host.key || key === host.key) return false;
+  if (room.phase !== "LOBBY" || room.hostKey !== host.key || key === host.key) return false;
   if (!room.members.some((m) => m.key === key)) return false;
-  notifyRemoved(room, key, "ATILDI");
+  notifyRemoved(room, key, "KICKED");
   removeMember(room, key);
   return true;
 }
@@ -452,7 +452,7 @@ export function kick(room: Room, host: Member, key: string) {
  */
 export function startLobby(room: Room, host: Member): "OK" | "NOT_HOST" | "NOT_READY" | "PHASE" {
   if (room.hostKey !== host.key) return "NOT_HOST";
-  if (room.phase !== "LOBI") return "PHASE";
+  if (room.phase !== "LOBBY") return "PHASE";
   if (room.members.some((m) => m.key !== host.key && m.streams > 0 && !m.ready)) return "NOT_READY";
   host.ready = true;
   startCountdown(room);
@@ -461,9 +461,9 @@ export function startLobby(room: Room, host: Member): "OK" | "NOT_HOST" | "NOT_R
 
 /** After a lobby race (results shown) the room goes back to its lobby; people who left the race go. */
 function backToLobby(room: Room) {
-  if (room.phase !== "BITTI") return;
+  if (room.phase !== "FINISHED") return;
   const left = new Set(room.race?.racers.filter((r) => r.left).map((r) => r.id));
-  room.phase = "LOBI";
+  room.phase = "LOBBY";
   room.race = null;
   room.results = null;
   room.raceId = null;
@@ -480,11 +480,11 @@ function backToLobby(room: Room) {
 
 function startCountdown(room: Room) {
   const seed = randomSeed();
-  const racing = room.members.filter((m) => m.ready || room.kind === "HIZLI").sort((a, b) => a.joinedAt - b.joinedAt);
+  const racing = room.members.filter((m) => m.ready || room.kind === "QUICK").sort((a, b) => a.joinedAt - b.joinedAt);
   room.race = createRace(seed, racing.map((m) => ({ id: m.key, name: m.name, avatar: null })), pickBots(seed, room.botLevels), room.questionCount);
   room.raceId = randomId(9);
   room.startAt = Date.now() + COUNTDOWN_MS + CONNECT_BUFFER_MS;
-  room.phase = "GERI_SAYIM";
+  room.phase = "COUNTDOWN";
   room.results = null;
   touch(room);
 }
@@ -511,26 +511,26 @@ type AnswerReply =
       combo: number;
       answered: number;
     }
-  | { ok: false; error: "OLMAYAN" | "YARIS_YOK" | "COK_HIZLI" };
+  | { ok: false; error: "NOT_RACER" | "NO_RACE" | "TOO_FAST" };
 
 /**
- * One typed answer, or a pass (`pas`: the question is replaced, see skipQuestion). Time is measured here (the
+ * One typed answer, or a pass (`pass`: the question is replaced, see skipQuestion). Time is measured here (the
  * previous accepted answer of this person to this one).
  */
-export function answer(room: Room, member: Member, input: { raceId: string; index: number; answer: string; pas?: boolean }): AnswerReply {
+export function answer(room: Room, member: Member, input: { raceId: string; index: number; answer: string; pass?: boolean }): AnswerReply {
   const now = Date.now();
   member.hits = member.hits.filter((t) => now - t < 1000);
-  if (member.hits.length >= ANSWERS_PER_SECOND) return { ok: false, error: "COK_HIZLI" };
+  if (member.hits.length >= ANSWERS_PER_SECOND) return { ok: false, error: "TOO_FAST" };
   member.hits.push(now);
   member.seenAt = now;
   // The browser shows the first question at the start time; the clock's tick may not have run yet.
-  if (room.phase === "GERI_SAYIM" && room.startAt !== null && now >= room.startAt) room.phase = "YARIS";
-  if (room.phase !== "YARIS" || !room.race || room.raceId !== input.raceId) return { ok: false, error: "YARIS_YOK" };
+  if (room.phase === "COUNTDOWN" && room.startAt !== null && now >= room.startAt) room.phase = "RACING";
+  if (room.phase !== "RACING" || !room.race || room.raceId !== input.raceId) return { ok: false, error: "NO_RACE" };
 
   const t = now - room.startAt!;
   const before = room.race.racers.find((r) => r.id === member.key);
-  if (!before) return { ok: false, error: "OLMAYAN" };
-  if (input.pas) {
+  if (!before) return { ok: false, error: "NOT_RACER" };
+  if (input.pass) {
     // The browser locks for SKIP_LOCK_MS after a pass; the server allows for network jitter. The new question also
     // reaches the person's screen through the stream (when this reply is lost).
     const res = skipQuestion(room.race, member.key, input.index, t, { lockMs: SKIP_LOCK_MS - GRACE_MS });
@@ -551,9 +551,9 @@ export function answer(room: Room, member: Member, input: { raceId: string; inde
 }
 
 function finishRace(room: Room) {
-  if (room.phase === "BITTI" || !room.race) return;
+  if (room.phase === "FINISHED" || !room.race) return;
   const race = room.race;
-  room.phase = "BITTI";
+  room.phase = "FINISHED";
   room.endedAt = Date.now();
   const order = ranking(race);
   // People who watched this race (joined the lobby late, weren't ready) have no result, nor does someone who left
@@ -578,7 +578,7 @@ function finishRace(room: Room) {
   });
   broadcast(room);
   // A lobby then goes back to its lobby screen (the browsers keep showing the results until the person closes them).
-  if (room.kind === "LOBI") backToLobby(room);
+  if (room.kind === "LOBBY") backToLobby(room);
 }
 
 // ---- Stream -----------------------------------------------------------------------------------------------------
@@ -596,7 +596,7 @@ export function subscribe(room: Room, member: Member, sub: Subscriber) {
   room.subscribers.add(sub);
   member.streams++;
   member.seenAt = Date.now();
-  // Everyone sees who is connected ("bağlı değil" in the lobby); the new screen gets the full state with it.
+  // Everyone sees who is connected ("not connected" in the lobby); the new screen gets the full state with it.
   broadcast(room);
   return () => {
     room.subscribers.delete(sub);
@@ -724,7 +724,7 @@ function view(room: Room, me: Member) {
     // replacement after a pass). Sent from the countdown on, so the first one shows exactly at the start time;
     // answers before it are refused.
     ahead:
-      race && mine && (room.phase === "GERI_SAYIM" || room.phase === "YARIS") && mine.finishedAt === null
+      race && mine && (room.phase === "COUNTDOWN" || room.phase === "RACING") && mine.finishedAt === null
         ? [currentQuestion(race, mine)!, ...race.questions.slice(mine.answered + 1, mine.answered + 3)].map((q, i) => aheadItem(mine.answered + i, q))
         : [],
     results: room.results
@@ -752,11 +752,11 @@ function tick() {
   const r = reg();
   const now = Date.now();
   for (const room of [...r.rooms.values()]) {
-    if (room.phase === "GERI_SAYIM" && room.startAt !== null && now >= room.startAt) {
-      room.phase = "YARIS";
+    if (room.phase === "COUNTDOWN" && room.startAt !== null && now >= room.startAt) {
+      room.phase = "RACING";
       broadcast(room);
     }
-    if (room.phase === "YARIS" && room.race && room.startAt !== null) {
+    if (room.phase === "RACING" && room.race && room.startAt !== null) {
       // People whose stream is gone for a while count as left (the race doesn't wait for them).
       for (const m of room.members) {
         const racer = room.race.racers.find((x) => x.id === m.key);
@@ -768,8 +768,8 @@ function tick() {
     }
     // Cleanup
     const idle = now - room.activeAt;
-    if (room.phase === "BITTI" && room.kind === "HIZLI" && room.endedAt !== null && now - room.endedAt > FINISHED_ROOM_TTL_MS) removeRoom(room);
-    else if ((room.phase === "LOBI" || room.phase === "BITTI") && idle > LOBBY_IDLE_MS) removeRoom(room);
+    if (room.phase === "FINISHED" && room.kind === "QUICK" && room.endedAt !== null && now - room.endedAt > FINISHED_ROOM_TTL_MS) removeRoom(room);
+    else if ((room.phase === "LOBBY" || room.phase === "FINISHED") && idle > LOBBY_IDLE_MS) removeRoom(room);
   }
   if (!r.rooms.size && r.timer) {
     clearInterval(r.timer);

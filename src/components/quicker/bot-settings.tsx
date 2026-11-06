@@ -5,15 +5,15 @@ import { BOT_LEVELS, BOT_LEVEL_KEYS, MAX_RACERS, type BotLevel } from "@/lib/eng
 // Bot settings of the setup screen and the lobby: how many bots (0–5, fewer when people take the seats) and a level
 // per slot, with one-tap presets. Read-only for everyone but the lobby's host.
 
-/** The default ("Karışık"): an above-average player beats these; strong bots only when the player picks them. */
-export const DEFAULT_BOTS: BotLevel[] = ["ORTA", "ORTA", "KOLAY", "KOLAY", "KOLAY"];
+/** The default ("Mixed"): an above-average player beats these; strong bots only when the player picks them. */
+export const DEFAULT_BOTS: BotLevel[] = ["MEDIUM", "MEDIUM", "EASY", "EASY", "EASY"];
 const PRESETS: { label: string; levels: BotLevel[] }[] = [
-  { label: "Hepsi kolay", levels: Array(MAX_RACERS - 1).fill("KOLAY") },
-  { label: "Karışık", levels: DEFAULT_BOTS },
-  { label: "Zorlu", levels: ["USTA", "ZOR", "ZOR", "ORTA", "ORTA"] },
-  { label: "Hepsi usta", levels: Array(MAX_RACERS - 1).fill("USTA") },
+  { label: "All easy", levels: Array(MAX_RACERS - 1).fill("EASY") },
+  { label: "Mixed", levels: DEFAULT_BOTS },
+  { label: "Tough", levels: ["EXPERT", "HARD", "HARD", "MEDIUM", "MEDIUM"] },
+  { label: "All experts", levels: Array(MAX_RACERS - 1).fill("EXPERT") },
 ];
-const NEW_SLOT: BotLevel = "ORTA";
+const NEW_SLOT: BotLevel = "MEDIUM";
 
 const same = (a: BotLevel[], b: BotLevel[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
@@ -22,9 +22,9 @@ export function BotSettings({ value, onChange, max = MAX_RACERS - 1 }: { value: 
   if (!onChange) {
     return (
       <div>
-        <h3 className="text-sm font-semibold mb-2">Botlar</h3>
+        <h3 className="text-sm font-semibold mb-2">Bots</h3>
         {bots.length === 0 ? (
-          <p className="text-sm text-muted">Bot yok.</p>
+          <p className="text-sm text-muted">No bots.</p>
         ) : (
           <ul className="flex flex-wrap gap-2">
             {bots.map((level, i) => (
@@ -44,7 +44,7 @@ export function BotSettings({ value, onChange, max = MAX_RACERS - 1 }: { value: 
     <div className="space-y-3">
       <div>
         <h3 className="text-sm font-semibold mb-2" id="hy-bot-count">
-          Bot sayısı
+          Bots
         </h3>
         <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby="hy-bot-count">
           {Array.from({ length: max + 1 }, (_, n) => (
@@ -59,10 +59,10 @@ export function BotSettings({ value, onChange, max = MAX_RACERS - 1 }: { value: 
             </button>
           ))}
         </div>
-        {bots.length === 0 && <p className="text-xs text-muted mt-1.5">Botsuz: saate karşı tek başına.</p>}
+        {bots.length === 0 && <p className="text-xs text-muted mt-1.5">No bots: just you against the clock.</p>}
       </div>
       {max > 0 && (
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Hazır ayarlar">
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Presets">
           {PRESETS.map((p) => {
             const levels = p.levels.slice(0, max);
             return (

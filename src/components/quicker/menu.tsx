@@ -5,10 +5,10 @@ import { QUICKER } from "@/lib/game";
 import { DEFAULT_QUESTIONS, QUESTION_COUNTS } from "@/lib/engine";
 import { OpenLobbiesPanel, useOpenLobbies } from "./open-lobbies";
 import { ScoringTable } from "./scoring-table";
-import { seconds, type BestRuns, type StoredResult } from "./storage";
+import { ordinal, seconds, type BestRuns, type StoredResult } from "./storage";
 
-// The game page: how to play, the scoring table, the ways in (Hızlı başla / Lobi kur / Açık lobiler with the list of
-// public lobbies waiting for players), this browser's records of every question count and its recent races.
+// The game page: how to play, the scoring table, the ways in (Quick start / Create lobby / Open lobbies with the list
+// of public lobbies waiting for players), this browser's records of every question count and its recent races.
 
 export type Records = { results: StoredResult[]; best: BestRuns };
 
@@ -29,8 +29,8 @@ export function Menu({
   const joinable = lobbies?.filter((l) => !l.racing && !l.full).length ?? 0;
   const lobbyButton = (className: string) => (
     <button type="button" onClick={onLobby} className={`btn-secondary press ${className}`}>
-      Lobi kur
-      <span className="block text-xs font-normal text-muted">Arkadaşlarını davet et</span>
+      Create lobby
+      <span className="block text-xs font-normal text-muted">Invite your friends</span>
     </button>
   );
   return (
@@ -42,14 +42,15 @@ export function Menu({
             <p className="text-muted mt-1">{QUICKER.description}</p>
           </div>
           <p>
-            Soruyu gör, cevabı yaz. Enter&apos;a basmana gerek yok: doğru sayıyı yazdığın an kabul edilir. Soruların hepsini ilk bitiren kazanır
-            (10 ile 30 arası, sen seçersin; varsayılan {DEFAULT_QUESTIONS}); biri bitirince diğerlerinin 20 saniyesi kalır. Yarış başladıktan sonra durmaz.
+            See the question, type the answer. No need to press Enter: the right number counts the moment you type it. The first to finish every
+            question wins (10 to 30, you choose; {DEFAULT_QUESTIONS} by default); once someone finishes, the others have 20 seconds left. Once a race
+            starts it doesn&apos;t stop.
           </p>
           <ScoringTable />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button type="button" onClick={onQuick} className="btn-primary press px-4 py-4 text-lg font-semibold">
-              Hızlı başla
-              <span className="block text-xs font-normal opacity-90">Botlara karşı hemen yarış</span>
+              Quick start
+              <span className="block text-xs font-normal opacity-90">Race the bots right now</span>
             </button>
             {lobbyButton("px-4 py-4 text-lg font-semibold")}
             <button
@@ -59,10 +60,10 @@ export function Menu({
               aria-controls="hy-open-lobbies"
               className="btn-secondary press relative px-4 py-4 text-lg font-semibold"
             >
-              Açık lobiler
-              <span className="block text-xs font-normal text-muted">Bekleyen bir lobiye katıl</span>
+              Open lobbies
+              <span className="block text-xs font-normal text-muted">Join a waiting lobby</span>
               {joinable > 0 && (
-                <span className="badge-success absolute -top-2 -right-2 min-w-6 px-1.5 py-0.5 text-xs font-bold tabular-nums rounded-full" aria-label={`${joinable} açık lobi`}>
+                <span className="badge-success absolute -top-2 -right-2 min-w-6 px-1.5 py-0.5 text-xs font-bold tabular-nums rounded-full" aria-label={`${joinable} open lobbies`}>
                   {joinable}
                 </span>
               )}
@@ -73,13 +74,13 @@ export function Menu({
       </div>
       <aside className="card p-5 space-y-4 h-fit">
         <div>
-          <h2 className="font-semibold">Rekorların</h2>
+          <h2 className="font-semibold">Your records</h2>
           <table className="text-sm w-full mt-1">
             <thead className="text-xs text-muted text-left">
               <tr>
-                <th className="font-normal py-1">Soru</th>
-                <th className="font-normal py-1 text-right">Puan</th>
-                <th className="font-normal py-1 text-right">Süre</th>
+                <th className="font-normal py-1">Questions</th>
+                <th className="font-normal py-1 text-right">Points</th>
+                <th className="font-normal py-1 text-right">Time</th>
               </tr>
             </thead>
             <tbody>
@@ -88,34 +89,34 @@ export function Menu({
                 return (
                   <tr key={n} className="border-t border-border tabular-nums">
                     <td className="py-1.5">{n}</td>
-                    <td className="py-1.5 text-right">{mine ? <span className="font-bold">{mine.score.toLocaleString("tr-TR")}</span> : <span className="text-muted">–</span>}</td>
+                    <td className="py-1.5 text-right">{mine ? <span className="font-bold">{mine.score.toLocaleString("en-US")}</span> : <span className="text-muted">–</span>}</td>
                     <td className="py-1.5 text-right">{mine ? seconds(mine.ms) : <span className="text-muted">–</span>}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          <p className="text-xs text-muted mt-1">Bütün soruları bitirdiğin en yüksek puanlı yarış (bu tarayıcıda).</p>
+          <p className="text-xs text-muted mt-1">Your highest-scoring race with every question finished (in this browser).</p>
         </div>
         <div>
-          <h2 className="font-semibold mb-2">Bu oturumdaki oyunların</h2>
+          <h2 className="font-semibold mb-2">This session&apos;s games</h2>
           {records.results.length === 0 ? (
-            <p className="text-sm text-muted">Henüz oyun yok.</p>
+            <p className="text-sm text-muted">No games yet.</p>
           ) : (
             <table className="text-sm w-full">
               <thead className="text-xs text-muted text-left">
                 <tr>
-                  <th className="font-normal py-1">Sıra</th>
-                  <th className="font-normal py-1 text-right">Puan</th>
-                  <th className="font-normal py-1 text-right">Doğru</th>
-                  <th className="font-normal py-1 text-right">Ort.</th>
+                  <th className="font-normal py-1">Place</th>
+                  <th className="font-normal py-1 text-right">Points</th>
+                  <th className="font-normal py-1 text-right">Correct</th>
+                  <th className="font-normal py-1 text-right">Avg.</th>
                 </tr>
               </thead>
               <tbody>
                 {records.results.map((r) => (
                   <tr key={r.at} className="border-t border-border tabular-nums">
-                    <td className="py-1">{r.rank}.</td>
-                    <td className="py-1 text-right">{r.points.toLocaleString("tr-TR")}</td>
+                    <td className="py-1">{ordinal(r.rank)}</td>
+                    <td className="py-1 text-right">{r.points.toLocaleString("en-US")}</td>
                     <td className="py-1 text-right">
                       {r.correct}/{r.total ?? 30}
                     </td>

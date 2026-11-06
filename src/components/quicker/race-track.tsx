@@ -8,7 +8,7 @@ import { RacerAvatar } from "./racer-avatar";
 // Up to six lanes (the viewer always first, then the other people in join order, bots last): a compact strip of names
 // and points on top, then the lanes with a thin chequered finish line, avatars that jump one step up their lane per
 // correct answer and a "+100" rising over them (the finishing speed bonus with a clock). Avatars stay inside the lanes
-// (never over a name). A person who left stays greyed out ("ayrıldı").
+// (never over a name). A person who left stays greyed out ("left").
 
 export type TrackRacer = RoomView["racers"][number];
 export type Float = { seq: number; racerId: string; points: number; bonus: boolean };
@@ -82,14 +82,14 @@ export function RaceTrack({
           return (
             <div key={r.id} data-lane-head={r.id} className={`min-w-0 px-1 py-1 text-center ${i > 0 ? "border-l border-dashed border-border" : ""} ${r.left ? "opacity-40" : ""}`}>
               <div className={`truncate text-[11px] md:text-sm leading-tight ${isMe ? "font-bold text-primary" : "font-medium"}`} title={r.name}>
-                {isMe ? "Sen" : r.name}
+                {isMe ? "You" : r.name}
               </div>
               <div className="text-[11px] md:text-sm leading-tight font-semibold tabular-nums">
                 {r.left ? (
-                  <span className="text-muted font-normal">ayrıldı</span>
+                  <span className="text-muted font-normal">left</span>
                 ) : (
                   <>
-                    {r.score.toLocaleString("tr-TR")}
+                    {r.score.toLocaleString("en-US")}
                     {r.finished && <span className="text-success-text"> ✓</span>}
                   </>
                 )}
@@ -103,9 +103,9 @@ export function RaceTrack({
         <MathPattern />
         <div aria-hidden className="hy-finish absolute inset-x-0 top-0 h-2" />
         <span aria-hidden className="absolute right-1.5 top-2.5 text-[9px] md:text-[10px] font-semibold tracking-[0.25em] text-muted">
-          BİTİŞ
+          FINISH
         </span>
-        <ol className={`relative grid h-full pt-3 transition-opacity duration-300 ${dimmed ? "opacity-40" : ""}`} style={columns} aria-label="Yarışçılar">
+        <ol className={`relative grid h-full pt-3 transition-opacity duration-300 ${dimmed ? "opacity-40" : ""}`} style={columns} aria-label="Racers">
           {lanes.map((r, i) => {
             const isMe = r.id === meId;
             const answered = isMe ? Math.max(myAnswered, r.answered) : r.answered;
@@ -122,7 +122,7 @@ export function RaceTrack({
                       className={`hy-float absolute left-1/2 bottom-full flex items-center gap-0.5 text-xs md:text-sm font-bold whitespace-nowrap ${f.bonus ? "mb-6" : "mb-1"} ${isMe ? "text-primary" : "text-success-text"}`}
                       aria-hidden
                     >
-                      {f.bonus && <Timer size={12} aria-hidden />}+{f.points.toLocaleString("tr-TR")}
+                      {f.bonus && <Timer size={12} aria-hidden />}+{f.points.toLocaleString("en-US")}
                     </span>
                   ))}
                   {/* The top combo tier: a faint trail behind the player's avatar. */}
@@ -135,13 +135,13 @@ export function RaceTrack({
                   </span>
                 </div>
                 <span className="sr-only">
-                  {isMe ? "Sen" : r.name}: {answered} doğru, {r.score} puan{r.left ? ", ayrıldı" : ""}
+                  {isMe ? "You" : r.name}: {answered} correct, {r.score} points{r.left ? ", left" : ""}
                 </span>
               </li>
             );
           })}
         </ol>
-        {/* The countdown / "BAŞLA!" overlays sit over the lanes only. */}
+        {/* The countdown / "GO!" overlays sit over the lanes only. */}
         {children}
       </div>
     </div>

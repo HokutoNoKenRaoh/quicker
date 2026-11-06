@@ -10,7 +10,7 @@ export function SettingsMenu({
   settings,
   update,
   reducedMotion,
-  hints = { effects: "Sıra ışığı, kıvılcımlar", shake: "Öndeyken kalp atışı, titreşim, hata sallanması" },
+  hints = { effects: "Place glow, sparks", shake: "Heartbeat in the lead, nudges, mistake shake" },
   large = false,
   closeOnEscape = false,
 }: {
@@ -57,20 +57,20 @@ export function SettingsMenu({
           setOpen((o) => !o);
         }}
         aria-expanded={open}
-        aria-label="Ses ve efekt ayarları"
-        title="Ayarlar"
+        aria-label="Sound and effect settings"
+        title="Settings"
         className={large ? "min-w-11 min-h-11 inline-flex items-center justify-center rounded-lg hover:bg-surface" : "btn-secondary p-2"}
       >
         <SlidersHorizontal size={18} aria-hidden />
       </button>
       {open && (
-        <div className="card absolute right-0 top-full mt-2 z-30 w-64 p-4 space-y-3 shadow-xl text-sm" role="group" aria-label="Ayarlar">
+        <div className="card absolute right-0 top-full mt-2 z-30 w-64 p-4 space-y-3 shadow-xl text-sm" role="group" aria-label="Settings">
           <label className="flex items-center justify-between gap-3 cursor-pointer">
-            <span className="font-semibold">Ses</span>
+            <span className="font-semibold">Sound</span>
             <input type="checkbox" checked={settings.sound} onChange={(e) => update({ sound: e.target.checked })} className="w-4 h-4" />
           </label>
           <label className="block">
-            <span className="sr-only">Ses düzeyi</span>
+            <span className="sr-only">Volume</span>
             <input
               type="range"
               min={0}
@@ -79,13 +79,13 @@ export function SettingsMenu({
               value={Math.round(settings.volume * 100)}
               disabled={!settings.sound}
               onChange={(e) => update({ volume: Number(e.target.value) / 100 })}
-              aria-label="Ses düzeyi"
+              aria-label="Volume"
               className="w-full accent-current disabled:opacity-50"
             />
           </label>
           <label className="flex items-center justify-between gap-3 cursor-pointer">
             <span>
-              <span className="font-semibold block">Ekran efektleri</span>
+              <span className="font-semibold block">Screen effects</span>
               <span className="text-xs text-muted">{hints.effects}</span>
             </span>
             <input type="checkbox" checked={settings.effects} onChange={(e) => update({ effects: e.target.checked })} className="w-4 h-4 shrink-0" />
@@ -93,14 +93,14 @@ export function SettingsMenu({
           {hints.shake !== undefined && (
             <label className="flex items-center justify-between gap-3 cursor-pointer">
               <span>
-                <span className="font-semibold block">Ekran sarsıntısı</span>
+                <span className="font-semibold block">Screen shake</span>
                 <span className="text-xs text-muted">{hints.shake}</span>
               </span>
               <input type="checkbox" checked={settings.shake} onChange={(e) => update({ shake: e.target.checked })} className="w-4 h-4 shrink-0" />
             </label>
           )}
           {reducedMotion && (
-            <p className="text-xs text-muted">Cihazında &quot;hareketi azalt&quot; açık: {hints.shake !== undefined ? "efektler ve sarsıntı" : "efektler"} kapalı kalır.</p>
+            <p className="text-xs text-muted">Your device has &quot;reduce motion&quot; on: {hints.shake !== undefined ? "effects and shakes stay" : "effects stay"} off.</p>
           )}
         </div>
       )}

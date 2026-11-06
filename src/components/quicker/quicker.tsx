@@ -44,30 +44,30 @@ import { leaveSeat, post, useRace, type AheadQuestion, type AnswerReply, type Se
 // streams (./use-race.ts) and sends what the player types; the next question shows at once (the browser checks the
 // typed digits against it), the points come back from the server.
 //
-//   MENU → HAZIR (bots) → Başla: OYUN (countdown → race → results → Tekrar oyna)
-//                                → Lobiyi kur: OYUN (lobby ⇄ countdown → race → results);   anywhere → MENU
-//   Lobby link (/lobi/<kod>): straight into the lobby.
+//   MENU → SETUP (bots) → Start: GAME (countdown → race → results → Play again)
+//                                → Create lobby: GAME (lobby ⇄ countdown → race → results);   anywhere → MENU
+//   Lobby link (/lobby/<code>): straight into the lobby.
 //
 // Everything after the menu runs in the game window (../game-layer.tsx). There is no text field: touch screens answer
 // on the game's own keypad (./answer-pad.tsx, no system keyboard), computers on their keyboard (a key listener on the
-// window); both go through pressKey(). "Pas" (a new question in place of one the player is stuck on) is a sideways
+// window); both go through pressKey(). "Pass" (a new question in place of one the player is stuck on) is a sideways
 // swipe or a double tap on the question card, Tab on a keyboard. From the countdown on the screen is laid out exactly
-// as in the race; the question card holds a practice question ("Deneme"), never the real first one. The warm-up looks
-// different (a "ISINMA · Puan sayılmaz" banner, the big countdown over the faded lanes, a dashed card with a DENEME
-// badge and its own feedback) and the start is a moment ("BAŞLA!" over the track); a first-time card on the setup /
+// as in the race; the question card holds a practice question ("Practice"), never the real first one. The warm-up looks
+// different (a "WARM-UP · No points" banner, the big countdown over the faded lanes, a dashed card with a PRACTICE
+// badge and its own feedback) and the start is a moment ("GO!" over the track); a first-time card on the setup /
 // lobby screen and the "?" of the top bar explain it.
 
-type Stage = "MENU" | "HAZIR" | "OYUN";
-type Mode = "HIZLI" | "LOBI";
-type ActionKind = "BASLA" | "LOBI_KUR" | "BASLAT" | "HAZIR" | "HAZIR_DEGIL";
-type Phase = "BAGLANIYOR" | "HATA" | "LOBI" | "GERI_SAYIM" | "YARIS" | "IZLE" | "BITTI" | "GITTI" | "CIKARILDI" | "ALINDI";
+type Stage = "MENU" | "SETUP" | "GAME";
+type Mode = "QUICK" | "LOBBY";
+type ActionKind = "START" | "CREATE_LOBBY" | "LAUNCH" | "READY" | "UNREADY";
+type Phase = "CONNECTING" | "ERROR" | "LOBBY" | "COUNTDOWN" | "RACING" | "WATCHING" | "FINISHED" | "GONE" | "REMOVED" | "TAKEN";
 
 const COUNTDOWN_FROM = 5;
 /** How long a "+100" stays over an avatar (the hy-float animation). */
 const FLOAT_MS = 1000;
 /** Keys pressed this close to the start are dropped (they were meant for the practice question). */
 const START_GUARD_MS = 150;
-/** "Pas" by touch on the question card: a sideways swipe this long and fast, or two taps this close together. */
+/** "Pass" by touch on the question card: a sideways swipe this long and fast, or two taps this close together. */
 const SWIPE_PX = 40;
 const SWIPE_MS = 600;
 const TAP_MS = 250;
@@ -98,7 +98,7 @@ const joining = new Map<string, Promise<SeatReply | { ok: false; message?: strin
 function joinOnce(code: string) {
   let request = joining.get(code);
   if (!request) {
-    request = post<SeatReply>("katil", { kod: code });
+    request = post<SeatReply>("join", { code });
     joining.set(code, request);
     void request.finally(() => joining.delete(code));
   }
@@ -108,8 +108,8 @@ function joinOnce(code: string) {
 /** The question's width in em (bold digits and signs about 0.62 em, spaces 0.3, the wide tracking, 5 % spare). */
 const questionEm = (text: string) => ([...text].reduce((w, c) => w + (c === " " ? 0.3 : 0.62) + 0.025, 0) * 1.05).toFixed(2);
 
-/** Every player is a guest; the server names them "Misafir N" in a lobby. */
-const PLAYER: { name: string; avatar: AvatarView } = { name: "Misafir", avatar: { kind: "letter", char: "M", color: null } };
+/** Every player is a guest; the server names them "Guest N" in a lobby. */
+const PLAYER: { name: string; avatar: AvatarView } = { name: "Guest", avatar: { kind: "letter", char: "G", color: null } };
 
 export function Quicker({
   lobbyCode,
@@ -118,13 +118,13 @@ export function Quicker({
   lobbyCode?: string;
 }) {
   const player = PLAYER;
-  const [stage, setStage] = useState<Stage>(lobbyCode ? "OYUN" : "MENU");
+  const [stage, setStage] = useState<Stage>(lobbyCode ? "GAME" : "MENU");
   // The player tapped into a race (see showKeypad).
   const [armed, setArmed] = useState(false);
-  const [mode, setMode] = useState<Mode>(lobbyCode ? "LOBI" : "HIZLI");
+  const [mode, setMode] = useState<Mode>(lobbyCode ? "LOBBY" : "QUICK");
   const [seat, setSeat] = useState<Seat | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // A lobby action that failed (e.g. Başlat while someone isn't ready).
+  // A lobby action that failed (e.g. Start while someone isn't ready).
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
   // The race whose results the player closed.
@@ -136,7 +136,7 @@ export function Quicker({
   // Server time, sampled ten times a second while a game is open (countdown, "Son N saniye", the floats).
   const [now, setNow] = useState(0);
   useEffect(() => {
-    if (stage !== "OYUN") return;
+    if (stage !== "GAME") return;
     const id = setInterval(() => setNow(serverNow()), 100);
     return () => clearInterval(id);
   }, [stage, serverNow]);
@@ -148,9 +148,9 @@ export function Quicker({
   // What the player typed, tied to the question it was typed for (a new question shows an empty box by itself).
   const [typed, setTyped] = useState({ key: "", value: "" });
   const [practice, setPractice] = useState<Practice>(FIRST_PRACTICE);
-  // The last practice answer of this race's warm-up ("Doğru! (deneme)" / "Yanlış, tekrar dene (deneme)").
+  // The last practice answer of this race's warm-up ("Correct! (practice)" / "Wrong, try again (practice)").
   const [practiceFb, setPracticeFb] = useState<{ raceId: string; ok: boolean; n: number } | null>(null);
-  // The first-time "Nasıl oynanır?" card (true until read: no flash before hydration) and the "?" dialog.
+  // The first-time "How to play" card (true until read: no flash before hydration) and the "?" dialog.
   const [introSeen, setIntroSeen] = useState(true);
   const [howOpen, setHowOpen] = useState(false);
   const [pass, setPass] = useState<Pass | null>(null);
@@ -160,7 +160,7 @@ export function Quicker({
   const [wrongSeq, setWrongSeq] = useState(0);
   const lockUntil = useRef(0);
   // The game's own keypad: always on touch-only screens; on a touch screen with a keyboard / trackpad (a tablet with a
-  // keyboard cover) when the player switches "Ekran tuşları" on (remembered on the device). The keyboard works too.
+  // keyboard cover) when the player switches "Screen keys" on (remembered on the device). The keyboard works too.
   const keypadAuto = useTouchKeypad();
   const touchScreen = useTouchScreen();
   const [keypadChoice, setKeypadChoice] = useState(false);
@@ -192,8 +192,8 @@ export function Quicker({
   const [localRecords, setLocalRecords] = useState<Records>({ results: [], best: {} });
   const [bots, setBots] = useState<BotLevel[]>(DEFAULT_BOTS);
   const [questions, setQuestions] = useState<QuestionCount>(DEFAULT_QUESTIONS);
-  // Lobi kur: listed under "Açık lobiler" or the link only.
-  const [visibility, setVisibility] = useState<Visibility>("ACIK");
+  // Create lobby: listed under "Open lobbies" or the link only.
+  const [visibility, setVisibility] = useState<Visibility>("PUBLIC");
   const feedback = useFeedbackSettings();
   const soundOn = feedback.settings.sound;
   const windowRef = useRef<HTMLDivElement>(null);
@@ -213,25 +213,25 @@ export function Quicker({
 
   const startAt = v?.startAt ?? null;
   const phase: Phase = race.gone
-    ? "GITTI"
+    ? "GONE"
     : race.taken
-      ? "ALINDI"
+      ? "TAKEN"
       : race.removed
-      ? "CIKARILDI"
-      : !seat && error && stage === "OYUN"
-        ? "HATA"
+      ? "REMOVED"
+      : !seat && error && stage === "GAME"
+        ? "ERROR"
         : !v
-          ? "BAGLANIYOR"
-          : v.phase === "LOBI"
-            ? "LOBI"
-            : v.phase === "BITTI"
-              ? "BITTI"
+          ? "CONNECTING"
+          : v.phase === "LOBBY"
+            ? "LOBBY"
+            : v.phase === "FINISHED"
+              ? "FINISHED"
               : !v.me.racing
-                ? "IZLE"
+                ? "WATCHING"
                 : startAt === null || now < startAt
-                  ? "GERI_SAYIM"
-                  : "YARIS";
-  const inLobby = (v?.kind ?? (mode === "LOBI" ? "LOBI" : "HIZLI")) === "LOBI";
+                  ? "COUNTDOWN"
+                  : "RACING";
+  const inLobby = (v?.kind ?? (mode === "LOBBY" ? "LOBBY" : "QUICK")) === "LOBBY";
   const meKey = v?.me.key ?? seat?.key ?? "";
   const meOnServer = v?.racers.find((r) => r.id === meKey) ?? null;
   const sameRace = <T extends { raceId: string }>(x: T | null) => (x && v && x.raceId === v.raceId ? x : null);
@@ -241,19 +241,19 @@ export function Quicker({
   const myFinished = !!meOnServer?.finished || myAnswered >= total;
   // After a pass the question on screen is the server's replacement (null while it is on the way).
   const passNow = pass && v && pass.raceId === v.raceId && pass.i === myAnswered ? pass : null;
-  const question = phase === "YARIS" && !myFinished ? (passNow ? passNow.question : (v?.ahead.find((q) => q.i === myAnswered) ?? null)) : null;
+  const question = phase === "RACING" && !myFinished ? (passNow ? passNow.question : (v?.ahead.find((q) => q.i === myAnswered) ?? null)) : null;
   const racers: TrackRacer[] =
     v?.racers.map((r) =>
       r.id === meKey && reply && reply.raceId === v.raceId && reply.answered >= r.answered ? { ...r, score: Math.max(r.score, reply.score), combo: reply.combo } : r
     ) ?? [];
   const floats: Float[] =
     v && startAt !== null ? v.events.filter((e) => now - (startAt + e.at) < FLOAT_MS).map((e) => ({ seq: e.seq, racerId: e.racerId, points: e.points, bonus: e.bonus })) : [];
-  const live = phase === "YARIS" || phase === "IZLE";
+  const live = phase === "RACING" || phase === "WATCHING";
   const lastCall = live && v?.firstFinishAt != null && v.deadline !== null ? Math.max(0, Math.ceil((v.deadline - now) / 1000)) : null;
   const count = startAt !== null ? Math.min(COUNTDOWN_FROM, Math.max(1, Math.ceil((startAt - now) / 1000))) : COUNTDOWN_FROM;
-  const racing = stage === "OYUN" && (phase === "GERI_SAYIM" || phase === "YARIS");
+  const racing = stage === "GAME" && (phase === "COUNTDOWN" || phase === "RACING");
   // Where the player stands (the chip in the top bar, the gap line under the question) and their combo tier.
-  const order = phase === "YARIS" || phase === "BITTI" ? standings(racers, meKey, myAnswered) : [];
+  const order = phase === "RACING" || phase === "FINISHED" ? standings(racers, meKey, myAnswered) : [];
   const myPlace = order.findIndex((r) => r.id === meKey) + 1;
   const myCombo = racers.find((r) => r.id === meKey)?.combo ?? 10;
   const myTier = comboTier(myCombo);
@@ -263,18 +263,18 @@ export function Quicker({
     order.length > 1 && myPlace > 0
       ? myPlace === 1
         ? answeredOf(order[0]!) - answeredOf(order[1]!) > 0
-          ? `2.'den ${answeredOf(order[0]!) - answeredOf(order[1]!)} soru önde`
-          : "2. ile başa baş"
+          ? `${answeredOf(order[0]!) - answeredOf(order[1]!)} ahead of 2nd`
+          : "level with 2nd"
         : answeredOf(order[0]!) - myAnswered > 0
-          ? `1.'den ${answeredOf(order[0]!) - myAnswered} soru geride`
-          : "1. ile başa baş"
+          ? `${answeredOf(order[0]!) - myAnswered} behind 1st`
+          : "level with 1st"
       : null;
-  // The keypad's place stays from the player's own tap into a race (Başla, Tekrar oyna, Hazırım, Başlat) to their tap
-  // after it (the results, Hazır değilim, leaving): it never appears or disappears without input, so the card above it
+  // The keypad's place stays from the player's own tap into a race (Start, Play again, I'm ready, Start the race) to their tap
+  // after it (the results, Not ready, leaving): it never appears or disappears without input, so the card above it
   // never jumps when the server starts the countdown or ends the race. Its keys work
   // only in the countdown and the race.
-  const showKeypad = keypad && stage === "OYUN" && (phase === "GERI_SAYIM" || phase === "YARIS" || (armed && (phase === "BAGLANIYOR" || phase === "LOBI" || phase === "BITTI")));
-  const keysLive = phase === "GERI_SAYIM" || (phase === "YARIS" && !myFinished);
+  const showKeypad = keypad && stage === "GAME" && (phase === "COUNTDOWN" || phase === "RACING" || (armed && (phase === "CONNECTING" || phase === "LOBBY" || phase === "FINISHED")));
+  const keysLive = phase === "COUNTDOWN" || (phase === "RACING" && !myFinished);
   const twoCol = showKeypad && area.w > area.h && area.w >= 700;
   // A short play area (most phones between their browser bars, a phone in landscape): the card's question and answer
   // on one row, tighter keys, so the lanes keep their room.
@@ -298,18 +298,18 @@ export function Quicker({
     setReply(null);
   };
 
-  /** Hızlı başla / Lobi kur: asks the server for a seat. */
+  /** Quick start / Create lobby: asks the server for a seat. */
   const takeSeat = useCallback(
-    async (path: "hizli" | "lobi", body: unknown) => {
+    async (path: "quick" | "lobby", body: unknown) => {
       if (busy.current) return;
       busy.current = true;
       setSeat(null);
-      setStage("OYUN");
+      setStage("GAME");
       const res = await post<SeatReply>(path, body);
       busy.current = false;
       if (!res.ok) {
-        setError(res.message ?? "Bağlantı kurulamadı. Biraz sonra tekrar dene.");
-        setStage("HAZIR");
+        setError(res.message ?? "Couldn't connect. Try again in a little while.");
+        setStage("SETUP");
         return;
       }
       setSeat({ roomId: res.roomId, token: res.token, key: res.key });
@@ -319,10 +319,10 @@ export function Quicker({
 
   const startQuick = useCallback(() => {
     if (seat) leaveSeat(seat);
-    void takeSeat("hizli", { bots, sorular: questions });
+    void takeSeat("quick", { bots, questions });
   }, [seat, takeSeat, bots, questions]);
 
-  // An invite link: join at once (again with "Tekrar dene").
+  // An invite link: join at once (again with "Try again").
   const [joinAttempt, setJoinAttempt] = useState(0);
   useEffect(() => {
     if (!lobbyCode) return;
@@ -332,14 +332,14 @@ export function Quicker({
     void joinOnce(lobbyCode).then((res) => {
       if (off) return;
       if (res.ok) setSeat({ roomId: res.roomId, token: res.token, key: res.key });
-      else setError(res.message ?? "Lobiye katılınamadı.");
+      else setError(res.message ?? "Couldn't join the lobby.");
     });
     return () => {
       off = true;
     };
   }, [lobbyCode, joinAttempt]);
 
-  /** Başla / Tekrar oyna / Yeni yarış (a tap: the keyboard opens). */
+  /** Start / Play again / New race (a tap: the keyboard opens). */
   const quickAgain = () => {
     setArmed(true);
     tapIntoRace();
@@ -359,7 +359,7 @@ export function Quicker({
     startTransition(() => {
       resetRaceState();
       setMode(m);
-      setStage("HAZIR");
+      setStage("SETUP");
     });
   };
 
@@ -379,16 +379,16 @@ export function Quicker({
   const lobbyAction = async (body: Record<string, unknown>, quiet = false): Promise<string | null> => {
     if (!seat) return null;
     if (!quiet) setLobbyError(null);
-    const res = await post<{ ok: boolean; message?: string }>("islem", { oda: seat.roomId, t: seat.token, ...body });
+    const res = await post<{ ok: boolean; message?: string }>("action", { room: seat.roomId, token: seat.token, ...body });
     if (res.ok) return null;
-    const message = res.message ?? "İşlem yapılamadı.";
+    const message = res.message ?? "That didn't work.";
     if (!quiet) setLobbyError(message);
     return message;
   };
 
   // The host's bots and question count: shown at once, sent coalesced (lobby-setting.ts).
-  const lobbyBots = useLobbySetting(v?.botLevels, (levels) => lobbyAction({ islem: "botlar", bots: levels }));
-  const lobbyQuestions = useLobbySetting(v?.questionCount, (count) => lobbyAction({ islem: "sorular", sorular: count }));
+  const lobbyBots = useLobbySetting(v?.botLevels, (levels) => lobbyAction({ action: "bots", bots: levels }));
+  const lobbyQuestions = useLobbySetting(v?.questionCount, (count) => lobbyAction({ action: "questions", questions: count }));
 
   const me = v?.members.find((m) => m.key === meKey) ?? null;
   const waitingFor = v ? v.members.filter((m) => !m.host && m.here && !m.ready).length : 0;
@@ -463,7 +463,7 @@ export function Quicker({
   // window like any popup (not in a lobby, where it would also leave the lobby, nor over an open dialog).
   const closableRef = useRef(false);
   useLayoutEffect(() => {
-    closableRef.current = stage === "HAZIR" || phase === "GITTI" || phase === "CIKARILDI" || phase === "HATA";
+    closableRef.current = stage === "SETUP" || phase === "GONE" || phase === "REMOVED" || phase === "ERROR";
   });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -492,7 +492,7 @@ export function Quicker({
   const fx = useFeedback({
     settings: { sound: soundOn, effects: feedback.effects, shake: feedback.shake },
     raceId: v?.raceId ?? null,
-    racing: phase === "YARIS",
+    racing: phase === "RACING",
     racers,
     meKey,
     myAnswered,
@@ -507,11 +507,11 @@ export function Quicker({
 
   // The answer box belongs to one question: the race's current one (a pass changes its text), or the countdown's
   // practice question.
-  const answerKey = v?.raceId ? (phase === "YARIS" && question ? `${v.raceId}:${question.i}:${question.text}` : phase === "GERI_SAYIM" ? `${v.raceId}:deneme:${practice.seq}` : "") : "";
+  const answerKey = v?.raceId ? (phase === "RACING" && question ? `${v.raceId}:${question.i}:${question.text}` : phase === "COUNTDOWN" ? `${v.raceId}:practice:${practice.seq}` : "") : "";
   const shown = typed.key === answerKey ? typed.value : "";
 
   /**
-   * "Pas": a new question in place of this one. The practice gets one at once; in the race the server sends it (the
+   * "Pass": a new question in place of this one. The practice gets one at once; in the race the server sends it (the
    * same level, for this player only) and input waits SKIP_LOCK_MS, the combo resets and the next answer's time still
    * runs from the last correct one, so passing never pays unless the player is stuck. `from`: 1 = slide in from the
    * right, -1 = from the left.
@@ -542,11 +542,11 @@ export function Quicker({
     // Every tap may wake the sound: phones stop it after a call, a notification or another app.
     if (soundOn) unlockAudio();
     if (!answerKey || !v?.raceId || at < lockUntil.current) return;
-    const inRace = phase === "YARIS" && !!question;
+    const inRace = phase === "RACING" && !!question;
     // The last moment of the countdown: the key was meant for the practice question.
     if (!inRace && startAt !== null && startAt - serverNow() < START_GUARD_MS) return;
-    if (k === "PAS") return passQuestion(v.raceId, inRace ? question!.i : null, at, from);
-    const value = k === "SIL" ? shown.slice(0, -1) : k === "TEMIZLE" ? "" : shown.length < 2 ? shown + k : shown;
+    if (k === "PASS") return passQuestion(v.raceId, inRace ? question!.i : null, at, from);
+    const value = k === "BACKSPACE" ? shown.slice(0, -1) : k === "CLEAR" ? "" : shown.length < 2 ? shown + k : shown;
     const target = inRace ? question!.answer : practice.answer;
     // Wrong: the digits can't become the answer any more. Same question, empty box, combo gone, a short lock; the
     // server hears about it (it keeps the combo and counts the mistake).
@@ -582,7 +582,7 @@ export function Quicker({
     sendAnswer(v.raceId, question!.i, value, onReply(v.raceId));
   };
 
-  // A computer's keyboard: digits, Backspace (one digit), Delete (all), Tab ("Pas", only while there is a question to
+  // A computer's keyboard: digits, Backspace (one digit), Delete (all), Tab ("Pass", only while there is a question to
   // pass: elsewhere Tab moves the focus as usual). Not while a dialog or another field (a guest's name) has the keys,
   // and only real key presses.
   const pressKeyRef = useRef(pressKey);
@@ -592,7 +592,7 @@ export function Quicker({
     canPassRef.current = answerKey !== "";
   });
   useEffect(() => {
-    if (stage !== "OYUN") return;
+    if (stage !== "GAME") return;
     const onKey = (e: KeyboardEvent) => {
       if (!e.isTrusted || e.repeat || e.ctrlKey || e.metaKey || e.altKey || confirmRef.current || document.querySelector("dialog[open]")) return;
       const t = e.target as HTMLElement | null;
@@ -600,11 +600,11 @@ export function Quicker({
       const key: PadKey | null = /^[0-9]$/.test(e.key)
         ? (e.key as PadKey)
         : e.key === "Backspace"
-          ? "SIL"
+          ? "BACKSPACE"
           : e.key === "Delete"
-            ? "TEMIZLE"
+            ? "CLEAR"
             : e.key === "Tab" && !e.shiftKey && canPassRef.current
-              ? "PAS"
+              ? "PASS"
               : null;
       if (!key) return;
       e.preventDefault();
@@ -614,7 +614,7 @@ export function Quicker({
     return () => window.removeEventListener("keydown", onKey);
   }, [stage]);
 
-  // "Pas" by touch on the question card (the keypad keeps its keys): a sideways swipe, or a double tap. Touch and pen
+  // "Pass" by touch on the question card (the keypad keeps its keys): a sideways swipe, or a double tap. Touch and pen
   // only, so a mouse's clicks never pass a question.
   const swipe = useRef<{ id: number; x: number; y: number; t: number; done: boolean } | null>(null);
   const lastTap = useRef({ t: -Infinity, x: 0, y: 0 });
@@ -625,7 +625,7 @@ export function Quicker({
     if (e.timeStamp - tap.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < TAP_SLOP_PX * 3) {
       lastTap.current = { t: -Infinity, x: 0, y: 0 };
       swipe.current = null;
-      return pressKey("PAS", e.timeStamp);
+      return pressKey("PASS", e.timeStamp);
     }
     swipe.current = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, done: false };
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -636,7 +636,7 @@ export function Quicker({
     const dx = e.clientX - s.x;
     if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(e.clientY - s.y) * 1.5 && e.timeStamp - s.t < SWIPE_MS) {
       s.done = true;
-      pressKey("PAS", e.timeStamp, dx < 0 ? 1 : -1);
+      pressKey("PASS", e.timeStamp, dx < 0 ? 1 : -1);
     }
   };
   const onPassPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -663,12 +663,12 @@ export function Quicker({
     return () => ro.disconnect();
   }, [stage]);
 
-  // "Başla!" at the end of the countdown.
-  const raceStarted = phase === "YARIS" ? (v?.raceId ?? null) : null;
+  // "GO!" at the end of the countdown.
+  const raceStarted = phase === "RACING" ? (v?.raceId ?? null) : null;
   useEffect(() => {
     if (!raceStarted) return;
     if (soundRef.current) playStart();
-    // The first race on this device: the "Nasıl oynanır?" card has done its job.
+    // The first race on this device: the "How to play" card has done its job.
     writeIntroSeen();
   }, [raceStarted]);
 
@@ -680,8 +680,8 @@ export function Quicker({
   const menu = lobbyCode ? null : (
     <div className={stage === "MENU" ? undefined : "invisible"} inert={stage !== "MENU"}>
       <Menu
-        onQuick={() => openSetup("HIZLI")}
-        onLobby={() => openSetup("LOBI")}
+        onQuick={() => openSetup("QUICK")}
+        onLobby={() => openSetup("LOBBY")}
         records={localRecords}
         paused={stage !== "MENU"}
       />
@@ -691,44 +691,44 @@ export function Quicker({
 
   const prompt = question
     ? question.text
-    : phase === "YARIS" && passNow && !myFinished
-      ? "Yeni soru…"
-      : phase === "YARIS" && myFinished
-      ? "Bitirdin!"
-      : phase === "BITTI"
-        ? "Bitti"
-        : phase === "IZLE"
-          ? "İzliyorsun"
-          : phase === "GERI_SAYIM"
-            ? "Hazır ol…"
+    : phase === "RACING" && passNow && !myFinished
+      ? "New question…"
+      : phase === "RACING" && myFinished
+      ? "Finished!"
+      : phase === "FINISHED"
+        ? "Over"
+        : phase === "WATCHING"
+          ? "Watching"
+          : phase === "COUNTDOWN"
+            ? "Get ready…"
             : "–";
 
   // The button above the answer field (its tap opens the keyboard where a race follows).
   let action: { kind: ActionKind; label: string; disabled?: boolean; secondary?: boolean; note?: string } | null = null;
-  if (stage === "HAZIR") action = mode === "HIZLI" ? { kind: "BASLA", label: "Başla" } : { kind: "LOBI_KUR", label: "Lobiyi kur" };
-  else if (phase === "LOBI" && v && me) {
-    if (v.me.host) action = { kind: "BASLAT", label: "Başlat", disabled: waitingFor > 0, note: waitingFor > 0 ? `${waitingFor} kişinin hazır olması bekleniyor.` : undefined };
-    else if (me.ready) action = { kind: "HAZIR_DEGIL", label: "Hazır değilim", secondary: true, note: "Hazırsın. Yarışı lobiyi kuran başlatacak." };
-    else action = { kind: "HAZIR", label: "Hazırım" };
+  if (stage === "SETUP") action = mode === "QUICK" ? { kind: "START", label: "Start" } : { kind: "CREATE_LOBBY", label: "Create lobby" };
+  else if (phase === "LOBBY" && v && me) {
+    if (v.me.host) action = { kind: "LAUNCH", label: "Start the race", disabled: waitingFor > 0, note: waitingFor > 0 ? `Waiting for ${waitingFor} ${waitingFor === 1 ? "person" : "people"} to get ready.` : undefined };
+    else if (me.ready) action = { kind: "UNREADY", label: "Not ready", secondary: true, note: "You're ready. The lobby's host will start the race." };
+    else action = { kind: "READY", label: "I'm ready" };
   }
   const runAction = (kind: ActionKind) => {
-    if (kind === "BASLA") return quickAgain();
-    if (kind === "LOBI_KUR") return void takeSeat("lobi", { bots, sorular: questions, gorunurluk: visibility });
-    if (kind === "HAZIR_DEGIL") {
+    if (kind === "START") return quickAgain();
+    if (kind === "CREATE_LOBBY") return void takeSeat("lobby", { bots, questions, visibility });
+    if (kind === "UNREADY") {
       setArmed(false);
-      return void lobbyAction({ islem: "hazir", hazir: false });
+      return void lobbyAction({ action: "ready", ready: false });
     }
     setArmed(true);
     tapIntoRace();
     resetRaceState();
-    void lobbyAction(kind === "BASLAT" ? { islem: "baslat" } : { islem: "hazir", hazir: true });
+    void lobbyAction(kind === "LAUNCH" ? { action: "start" } : { action: "ready", ready: true });
   };
-  const beforeRace = stage === "HAZIR" || phase === "LOBI";
+  const beforeRace = stage === "SETUP" || phase === "LOBBY";
   // How to pass a question, on the card from the setup screen to the end of the race.
-  const passHint = keypad ? "Pas: soru kartını kaydır ya da çift dokun." : "Pas: Tab.";
-  const passHow = keypad ? "soru kartını yana kaydır ya da kartta çift dokun" : "Tab tuşuna bas";
+  const passHint = keypad ? "Pass: swipe the question card or double-tap it." : "Pass: Tab.";
+  const passHow = keypad ? "swipe the question card sideways or double-tap it" : "press Tab";
   const intro =
-    !introSeen && phase !== "YARIS" && phase !== "GERI_SAYIM" ? (
+    !introSeen && phase !== "RACING" && phase !== "COUNTDOWN" ? (
       <HowToPlayCard
         passHow={passHow}
         onDone={() => {
@@ -737,34 +737,34 @@ export function Quicker({
         }}
       />
     ) : null;
-  // The warm-up (countdown) and the start's "BAŞLA!" (about 600 ms, from the clock the screen samples anyway).
-  const warmUp = phase === "GERI_SAYIM" || (phase === "IZLE" && startAt !== null && now < startAt);
-  const go = (phase === "YARIS" || phase === "IZLE") && startAt !== null && now >= startAt && now - startAt < 650;
+  // The warm-up (countdown) and the start's "GO!" (about 600 ms, from the clock the screen samples anyway).
+  const warmUp = phase === "COUNTDOWN" || (phase === "WATCHING" && startAt !== null && now < startAt);
+  const go = (phase === "RACING" || phase === "WATCHING") && startAt !== null && now >= startAt && now - startAt < 650;
   const fb = practiceFb && practiceFb.raceId === v?.raceId ? practiceFb : null;
   const passLocked = !!passNow && now < passNow.lockEnd;
 
-  const notice = (title: string, text: string, again?: { label: string; kind: "YENI" | "KATIL" | "AL" }) => (
+  const notice = (title: string, text: string, again?: { label: string; kind: "NEW" | "JOIN" | "RECLAIM" }) => (
     <section className="card p-6 w-full max-w-md m-auto space-y-4 text-center" role="alert">
       <p className="font-semibold">{title}</p>
       {text && <p className="text-sm text-muted">{text}</p>}
       <div className="flex gap-3">
         {again && (
-          <button type="button" onClick={() => (again.kind === "YENI" ? quickAgain() : again.kind === "AL" ? race.reclaim() : retryJoin())} className="btn-primary press flex-1 py-2.5 font-semibold">
+          <button type="button" onClick={() => (again.kind === "NEW" ? quickAgain() : again.kind === "RECLAIM" ? race.reclaim() : retryJoin())} className="btn-primary press flex-1 py-2.5 font-semibold">
             {again.label}
           </button>
         )}
         <button type="button" onClick={exit} className="btn-secondary flex-1 py-2.5 text-sm">
-          Menüye dön
+          Back to menu
         </button>
       </div>
     </section>
   );
 
   let body: React.ReactNode;
-  if (stage === "HAZIR") {
+  if (stage === "SETUP") {
     body = (
       <Setup
-        lobby={mode === "LOBI"}
+        lobby={mode === "LOBBY"}
         player={player}
         bots={bots}
         onBots={changeBots}
@@ -776,21 +776,21 @@ export function Quicker({
         error={error}
       />
     );
-  } else if (phase === "GITTI") {
-    body = notice("Sunucu yeniden başladı, yarış iptal edildi.", "Bu yarış kaydedilmedi.", inLobby ? undefined : { label: "Yeni yarış", kind: "YENI" });
-  } else if (phase === "ALINDI") {
-    body = notice("Bu oyun başka bir pencerede açıldı.", "Burada devam etmek istersen al; diğer pencere durur.", { label: "Buraya al", kind: "AL" });
-  } else if (phase === "CIKARILDI") {
-    body = notice(race.removed === "BASKA_ODA" ? "Başka bir pencerede yeni bir oyuna geçtin." : "Lobiden çıkarıldın.", "");
-  } else if (phase === "HATA") {
-    body = notice(error ?? "Lobiye katılınamadı.", "", lobbyCode ? { label: "Tekrar dene", kind: "KATIL" } : undefined);
-  } else if (phase === "BAGLANIYOR" || !v) {
+  } else if (phase === "GONE") {
+    body = notice("The server restarted and the race was cancelled.", "This race wasn't saved.", inLobby ? undefined : { label: "New race", kind: "NEW" });
+  } else if (phase === "TAKEN") {
+    body = notice("This game was opened in another window.", "Take it here to continue; the other window stops.", { label: "Take it here", kind: "RECLAIM" });
+  } else if (phase === "REMOVED") {
+    body = notice(race.removed === "OTHER_ROOM" ? "You moved to a new game in another window." : "You were removed from the lobby.", "");
+  } else if (phase === "ERROR") {
+    body = notice(error ?? "Couldn't join the lobby.", "", lobbyCode ? { label: "Try again", kind: "JOIN" } : undefined);
+  } else if (phase === "CONNECTING" || !v) {
     body = (
       <div className="card p-6 w-full max-w-md m-auto text-center text-muted" role="status">
-        {mode === "LOBI" ? "Lobiye bağlanılıyor…" : "Yarış hazırlanıyor…"}
+        {mode === "LOBBY" ? "Connecting to the lobby…" : "Getting the race ready…"}
       </div>
     );
-  } else if (phase === "LOBI") {
+  } else if (phase === "LOBBY") {
     body = (
       <LobbyScreen
         view={{ ...v, botLevels: lobbyBots.value ?? v.botLevels, questionCount: lobbyQuestions.value ?? v.questionCount }}
@@ -802,16 +802,16 @@ export function Quicker({
           changeQuestions(count);
           lobbyQuestions.change(count);
         }}
-        onKick={(key) => void lobbyAction({ islem: "at", key })}
-        onRename={(name) => lobbyAction({ islem: "isim", isim: name }, true)}
-        onVisibility={(v) => void lobbyAction({ islem: "gorunurluk", gorunurluk: v })}
+        onKick={(key) => void lobbyAction({ action: "kick", key })}
+        onRename={(name) => lobbyAction({ action: "name", name }, true)}
+        onVisibility={(v) => void lobbyAction({ action: "visibility", visibility: v })}
         intro={intro}
       />
     );
   } else {
     body = (
       <>
-        {phase === "IZLE" && <p className="notice-info px-3 py-2 mb-2 text-sm text-center">Bu yarışı izliyorsun; bitince lobiye dönülür ve sonrakine katılabilirsin.</p>}
+        {phase === "WATCHING" && <p className="notice-info px-3 py-2 mb-2 text-sm text-center">You're watching this race; when it ends everyone goes back to the lobby and you can join the next one.</p>}
         <RaceTrack
           racers={racers}
           total={total}
@@ -827,7 +827,7 @@ export function Quicker({
           {warmUp && (
             <>
               <div className="notice-warning absolute inset-x-0 top-0 z-10 px-3 py-1.5 text-center text-xs md:text-sm font-bold tracking-wide" role="status">
-                ISINMA · Puan sayılmaz <span className="font-normal">· Yarış {count} sn sonra başlıyor</span>
+                WARM-UP · No points <span className="font-normal">· The race starts in {count} s</span>
               </div>
               <div aria-hidden className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
                 <span key={count} className="hy-count text-7xl md:text-9xl font-black text-primary tabular-nums">
@@ -836,10 +836,10 @@ export function Quicker({
               </div>
             </>
           )}
-          {/* The start: "BAŞLA!" for a moment. */}
+          {/* The start: "GO!" for a moment. */}
           {go && (
             <div aria-hidden className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-              <span className="hy-go text-6xl md:text-8xl font-black text-primary">BAŞLA!</span>
+              <span className="hy-go text-6xl md:text-8xl font-black text-primary">GO!</span>
             </div>
           )}
         </RaceTrack>
@@ -858,16 +858,16 @@ export function Quicker({
         <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-border">
           <div className="flex items-center gap-2 min-w-0">
             {/* The title gives way to the place on narrow screens during a race. */}
-            <h1 lang={QUICKER.lang} className={`text-base md:text-lg font-bold truncate normal-case ${phase === "YARIS" ? "hidden sm:block" : ""}`}>{QUICKER.title}</h1>
+            <h1 lang={QUICKER.lang} className={`text-base md:text-lg font-bold truncate normal-case ${phase === "RACING" ? "hidden sm:block" : ""}`}>{QUICKER.title}</h1>
             {/* The place, always readable (the colour is never the only signal), and the gap to the next place. */}
-            {phase === "YARIS" && order.length > 1 && myPlace > 0 && (
+            {phase === "RACING" && order.length > 1 && myPlace > 0 && (
               <>
                 <span
                   className="shrink-0 flex items-baseline gap-1 rounded-full px-2.5 py-0.5 text-sm font-bold tabular-nums border-2"
                   style={{ borderColor: rankColor(rankPosition(myPlace, order.length)) }}
-                  aria-label={`${order.length} kişi içinde ${myPlace}. sıradasın`}
+                  aria-label={`You are ${myPlace} of ${order.length}`}
                 >
-                  <span className="text-[10px] font-semibold text-muted">SIRA</span>
+                  <span className="text-[10px] font-semibold text-muted">PLACE</span>
                   {myPlace}/{order.length}
                 </span>
                 {gap && <span className="min-w-0 truncate text-xs text-muted">{gap}</span>}
@@ -875,31 +875,31 @@ export function Quicker({
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {race.offline && phase !== "GITTI" && phase !== "BITTI" && (
+            {race.offline && phase !== "GONE" && phase !== "FINISHED" && (
               <span className="badge-neutral px-2 py-1 text-xs" role="status">
-                Bağlanıyor…
+                Connecting…
               </span>
             )}
             {lastCall !== null && (
               <span className="badge-warning px-2 py-1 text-xs font-bold tabular-nums" aria-live="polite">
-                Son {lastCall} saniye
+                Last {lastCall} s
               </span>
             )}
-            <button type="button" onClick={() => setHowOpen(true)} aria-label="Nasıl oynanır?" title="Nasıl oynanır?" className="btn-secondary p-2">
+            <button type="button" onClick={() => setHowOpen(true)} aria-label="How to play" title="How to play" className="btn-secondary p-2">
               <CircleHelp size={18} aria-hidden />
             </button>
-            {/* "Ekran tuşları": a labelled on / off switch (a calculator icon alone wasn't found). */}
+            {/* "Screen keys": a labelled on / off switch (a calculator icon alone wasn't found). */}
             {touchScreen && !keypadAuto && (
               <button
                 type="button"
                 role="switch"
                 onClick={toggleKeypad}
                 aria-checked={keypadChoice}
-                title={keypadChoice ? "Ekran tuşları açık (kapatmak için dokun)" : "Ekran tuşları kapalı (açmak için dokun)"}
+                title={keypadChoice ? "Screen keys on (tap to turn off)" : "Screen keys off (tap to turn on)"}
                 className="btn-secondary flex items-center gap-2 pl-2 pr-2.5 py-1.5 text-sm font-semibold"
               >
                 <Grid3x3 size={18} aria-hidden />
-                <span>Ekran tuşları</span>
+                <span>Screen keys</span>
                 <span aria-hidden className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${keypadChoice ? "bg-primary" : "bg-border"}`}>
                   <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-card shadow transition-[left] ${keypadChoice ? "left-[1.125rem]" : "left-0.5"}`} />
                 </span>
@@ -910,8 +910,8 @@ export function Quicker({
             <button
               type="button"
               onClick={racing ? askExit : exit}
-              aria-label={inLobby && stage === "OYUN" ? "Lobiden çık ve kapat" : "Oyunu kapat"}
-              title={inLobby && stage === "OYUN" ? "Lobiden çık ve kapat" : "Kapat"}
+              aria-label={inLobby && stage === "GAME" ? "Leave the lobby and close" : "Close the game"}
+              title={inLobby && stage === "GAME" ? "Leave the lobby and close" : "Close"}
               className="btn-secondary p-2"
             >
               <X size={18} aria-hidden />
@@ -934,7 +934,7 @@ export function Quicker({
               {/* A touch on the card with the keypad hidden: how to play by touch (with the switch itself). */}
               {tapHint && !keypad && (
                 <div role="status" className="card absolute left-1/2 -translate-x-1/2 -top-14 z-20 w-[calc(100%-1.5rem)] max-w-md shadow-lg px-3 py-2 text-sm flex items-center justify-between gap-3">
-                  <span>Dokunarak oynamak için Ekran tuşları&apos;nı aç</span>
+                  <span>Turn on Screen keys to play by touch</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -943,11 +943,11 @@ export function Quicker({
                     }}
                     className="btn-primary px-3 py-1.5 text-xs font-semibold shrink-0"
                   >
-                    Aç
+                    Turn on
                   </button>
                 </div>
               )}
-              {/* A combo tier's name, shown once when it is reached ("Seri!", "Alev!", "Durdurulamaz!"). */}
+              {/* A combo tier's name, shown once when it is reached ("Streak!", "On fire!", "Unstoppable!"). */}
               <div ref={labelRef} aria-hidden className="pointer-events-none absolute left-1/2 -top-6 z-10 text-sm font-black text-primary whitespace-nowrap opacity-0" />
               <div
                 ref={cardRef}
@@ -955,22 +955,22 @@ export function Quicker({
                 onPointerMove={onPassPointerMove}
                 onPointerUp={onPassPointerUp}
                 onPointerCancel={onPassPointerCancel}
-                className={`card relative overflow-hidden w-full ${showKeypad ? "max-w-[420px]" : "max-w-md"} rounded-2xl shadow-xl px-3 ${cardRow && racing ? "py-1.5" : "py-2.5"} ${racing ? "hy-pass-zone" : ""} ${phase === "GERI_SAYIM" ? "outline-2 outline-dashed outline-primary -outline-offset-2" : ""} ${feedback.effects && phase === "YARIS" && myTier > 0 ? `hy-tier-${myTier}` : ""}`}
+                className={`card relative overflow-hidden w-full ${showKeypad ? "max-w-[420px]" : "max-w-md"} rounded-2xl shadow-xl px-3 ${cardRow && racing ? "py-1.5" : "py-2.5"} ${racing ? "hy-pass-zone" : ""} ${phase === "COUNTDOWN" ? "outline-2 outline-dashed outline-primary -outline-offset-2" : ""} ${feedback.effects && phase === "RACING" && myTier > 0 ? `hy-tier-${myTier}` : ""}`}
               >
-                {phase === "GERI_SAYIM" && (
+                {phase === "COUNTDOWN" && (
                   <span className={`badge-warning absolute left-2 z-10 px-1.5 py-0.5 text-[10px] font-bold tracking-widest ${cardRow ? "top-1/2 -translate-y-1/2" : "top-1.5"}`} aria-hidden>
-                    DENEME
+                    PRACTICE
                   </span>
                 )}
                 {/* The question number, small in the corner. */}
-                {phase === "YARIS" && !myFinished && (
+                {phase === "RACING" && !myFinished && (
                   <span className={`absolute z-10 text-[11px] text-muted tabular-nums ${cardRow ? "left-2.5 top-1/2 -translate-y-1/2" : "right-3 top-1"}`}>
-                    {cardRow ? "" : "Soru "}
+                    {cardRow ? "" : "Question "}
                     {Math.min(myAnswered + 1, total)}/{total}
                   </span>
                 )}
-                {/* The combo meter on the card's top edge (×1,0 → ×2,5); empties at once on a mistake. */}
-                {phase === "YARIS" && <span aria-hidden className="hy-combo-meter absolute left-0 top-0 h-1 bg-primary" style={{ width: `${((myCombo - 10) / 15) * 100}%` }} />}
+                {/* The combo meter on the card's top edge (×1.0 → ×2.5); empties at once on a mistake. */}
+                {phase === "RACING" && <span aria-hidden className="hy-combo-meter absolute left-0 top-0 h-1 bg-primary" style={{ width: `${((myCombo - 10) / 15) * 100}%` }} />}
                 {/* Correct answer: a short success tint. */}
                 {flash > 0 && <span key={flash} aria-hidden className="hy-flash absolute inset-0 pointer-events-none" />}
                 {action && (
@@ -992,20 +992,20 @@ export function Quicker({
                 )}
                 {/* The question big in the middle, the answer area under it (one row on a short screen). */}
                 {!beforeRace && (
-                  <div className={cardRow ? `relative flex items-center gap-3 ${phase === "GERI_SAYIM" ? "pl-16" : "pl-10"}` : "contents"}>
+                  <div className={cardRow ? `relative flex items-center gap-3 ${phase === "COUNTDOWN" ? "pl-16" : "pl-10"}` : "contents"}>
                     {/* hy-question (globals.css): the text shrinks to fit its width (a 3-number question in a narrow card). */}
                     <p
                       className={`hy-question relative text-center font-bold tabular-nums tracking-wide whitespace-nowrap ${cardRow ? "flex-1 min-w-0" : "mt-3"}`}
-                      style={{ "--hy-q-em": questionEm(phase === "GERI_SAYIM" ? practice.text : prompt) } as React.CSSProperties}
+                      style={{ "--hy-q-em": questionEm(phase === "COUNTDOWN" ? practice.text : prompt) } as React.CSSProperties}
                       aria-live="polite"
                     >
-                      {phase === "GERI_SAYIM" ? (
-                        <span aria-label={`Deneme sorusu: ${practice.text}`}>
+                      {phase === "COUNTDOWN" ? (
+                        <span aria-label={`Practice question: ${practice.text}`}>
                           {practice.text}
                         </span>
                       ) : (
                         <span
-                          key={passNow?.question ? `pas-${passNow.seq}` : "soru"}
+                          key={passNow?.question ? `pass-${passNow.seq}` : "question"}
                           className={passNow?.question ? "hy-pass-in" : undefined}
                           style={passNow?.question ? ({ "--hy-pass-from": `${24 * passNow.from}px` } as React.CSSProperties) : undefined}
                         >
@@ -1014,7 +1014,7 @@ export function Quicker({
                       )}
                     </p>
                     <div className={`relative ${cardRow ? "w-24 shrink-0" : "mt-2"}`}>
-                      <AnswerBox key={wrongSeq} value={shown} placeholder={passLocked ? "Bekle" : keypad ? "Cevap" : "Yaz"} state={wrongSeq ? "wrong" : null} compact={cardRow} />
+                      <AnswerBox key={wrongSeq} value={shown} placeholder={passLocked ? "Wait" : keypad ? "Answer" : "Type"} state={wrongSeq ? "wrong" : null} compact={cardRow} />
                       {/* After a pass: empties while input waits. */}
                       {passLocked && (
                         <span key={passNow!.seq} aria-hidden className="hy-pass-lock absolute left-3 right-3 bottom-1.5 h-1 rounded-full bg-primary" style={{ animationDuration: `${SKIP_LOCK_MS}ms` }} />
@@ -1024,24 +1024,24 @@ export function Quicker({
                 )}
                 {beforeRace && (
                   <p className="relative text-xs text-center text-muted">
-                    {keypad ? "Yarışta cevapları ekrandaki tuşlarla yazacaksın." : "Yarışta cevapları klavyenle yazacaksın."} {passHint}
+                    {keypad ? "In the race you type the answers on the screen keys." : "In the race you type the answers on your keyboard."} {passHint}
                   </p>
                 )}
                 {/* One quiet line: the warm-up's own feedback, the pass hint on a first race's first questions (only the
                     hint on the compact card). */}
                 {/* Kept (empty) outside the race on the stacked card, so the card's height doesn't change when it starts. */}
-                {stage === "OYUN" && (racing ? !cardRow || showPassHint : !cardRow) && (
+                {stage === "GAME" && (racing ? !cardRow || showPassHint : !cardRow) && (
                   <p className={`relative mt-1.5 min-h-4 text-center text-xs text-muted ${cardRow ? "truncate" : ""}`}>
                     {!racing ? null : cardRow ? (
                       !myFinished && passHint
-                    ) : phase === "GERI_SAYIM" ? (
+                    ) : phase === "COUNTDOWN" ? (
                       <>
                         {fb ? (
                           <span key={fb.n} className={`font-semibold ${fb.ok ? "text-success-text" : "text-danger"}`} role="status">
-                            {fb.ok ? "Doğru! (deneme)" : "Yanlış, tekrar dene (deneme)"}
+                            {fb.ok ? "Correct! (practice)" : "Wrong, try again (practice)"}
                           </span>
                         ) : (
-                          "Deneme sorusu, puan sayılmaz"
+                          "Practice question, no points"
                         )}
                         {showPassHint && <> · {passHint}</>}
                       </>
@@ -1070,7 +1070,7 @@ export function Quicker({
           </div>
         </div>
 
-        {stage === "OYUN" && finished?.results?.mine && (
+        {stage === "GAME" && finished?.results?.mine && (
           <ResultsDialog
             key={finished.raceId}
             order={finished.results.order.map((id) => finished.racers.find((r) => r.id === id)).filter((r): r is TrackRacer => !!r)}
@@ -1081,11 +1081,11 @@ export function Quicker({
             memberViews={views(finished)}
             celebrate={feedback.effects && finished.results.mine.placing === 1 && finished.results.mine.racerCount > 1}
             record={localRecord === finished.raceId}
-            againLabel={finished.kind === "LOBI" ? "Lobiye dön" : "Tekrar oyna"}
-            menuLabel={finished.kind === "LOBI" ? "Lobiden çık" : "Menüye dön"}
+            againLabel={finished.kind === "LOBBY" ? "Back to the lobby" : "Play again"}
+            menuLabel={finished.kind === "LOBBY" ? "Leave the lobby" : "Back to menu"}
             onAgain={() => {
               setDismissed(finished.raceId);
-              if (finished.kind !== "LOBI") quickAgain();
+              if (finished.kind !== "LOBBY") quickAgain();
               else setArmed(false);
             }}
             onMenu={exit}

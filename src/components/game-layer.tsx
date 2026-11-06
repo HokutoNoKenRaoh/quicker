@@ -13,7 +13,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 // The dimming covers the whole screen on its own. The page behind it is locked (body position: fixed, the scroll position restored on close), and the browser's back button /
 // swipe asks the game (onBack) instead of leaving the page. No browser full screen: in it Android Chrome lays the
 // keyboard over the page without telling it (the question card ended up under the keyboard) and shows its own
-// "Tam ekrandan çıkmak için…" notice over the game.
+// "exit full screen" notice over the game.
 
 type Box = { top: number; height: number };
 /** Some browsers report the keyboard late (or not at all while it animates): the size is checked again this often. */
@@ -22,7 +22,7 @@ const RECHECK_MS = 250;
 // history.back() calls made by a closing layer: the popstate they cause belongs to nobody (React's development double
 // mount closes and reopens the layer at once, and the reopened layer must not take it for a back press).
 let ownBacks = 0;
-const LAYER_HASH = "#oyun";
+const LAYER_HASH = "#game";
 const marked = () => window.location.hash === LAYER_HASH;
 
 const isTextField = (el: Element | null) => !!el?.closest("input, textarea, select, [contenteditable]");
@@ -134,7 +134,7 @@ export function GameLayer({
     };
   }, []);
 
-  // Back button / swipe: one history entry (the URL gets "#oyun") while the layer is open; going back asks the game.
+  // Back button / swipe: one history entry (the URL gets "#game") while the layer is open; going back asks the game.
   // A URL marker, because the Next.js router replaces history.state with its own.
   useEffect(() => {
     if (!marked()) window.history.pushState(window.history.state, "", LAYER_HASH);
@@ -185,7 +185,7 @@ export function GameLayer({
   );
 }
 
-/** The game re-adds the history entry when it answers a back press with "Oyundan çıkılsın mı?". */
+/** The game re-adds the history entry when it answers a back press with "Leave the game?". */
 export function keepLayerEntry() {
   if (!marked()) window.history.pushState(window.history.state, "", LAYER_HASH);
 }

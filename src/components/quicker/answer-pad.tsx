@@ -6,10 +6,10 @@ import { Delete } from "lucide-react";
 // Answering without a text field. Touch screens get this on-screen keypad: no system keyboard ever opens, so there is
 // no iOS AutoFill bar, no keyboard-hide button, no site strip above the keyboard and no layout jump between the
 // countdown and the race. Computers (and touch screens with a fine pointer) type on their own keyboard: the game
-// listens for the keys (quicker.tsx). Both feed the same answer box. "Pas" has no key here:
+// listens for the keys (quicker.tsx). Both feed the same answer box. "Pass" has no key here:
 // it is a swipe or a double tap on the question card, Tab on a keyboard.
 
-export type PadKey = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "SIL" | "TEMIZLE" | "PAS";
+export type PadKey = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "BACKSPACE" | "CLEAR" | "PASS";
 
 const KEYPAD_QUERY = "(pointer: coarse)";
 const FINE_QUERY = "(any-pointer: fine)";
@@ -57,7 +57,7 @@ export function AnswerBox({ value, placeholder, state, compact = false }: { valu
   return (
     <div
       aria-live="polite"
-      aria-label="Cevabın"
+      aria-label="Your answer"
       className={`relative w-full ${compact ? "h-10 text-2xl" : "h-14 text-3xl"} flex items-center justify-center rounded-xl bg-surface border border-border font-bold tabular-nums ${state === "wrong" ? "hy-wrong-box" : ""}`}
     >
       {value}
@@ -72,7 +72,7 @@ const ROWS: PadKey[][] = [
   ["1", "2", "3"],
   ["4", "5", "6"],
   ["7", "8", "9"],
-  ["0", "SIL"],
+  ["0", "BACKSPACE"],
 ];
 
 /**
@@ -82,14 +82,14 @@ const ROWS: PadKey[][] = [
  */
 export function Keypad({ onKey, disabled = false, compact = false }: { onKey: (key: PadKey, at: number) => void; disabled?: boolean; compact?: boolean }) {
   return (
-    <div className={`hy-keypad grid grid-cols-3 grid-rows-4 ${compact ? "gap-1.5" : "gap-2"} h-full`} role="group" aria-label="Rakam tuşları" onContextMenu={(e) => e.preventDefault()}>
+    <div className={`hy-keypad grid grid-cols-3 grid-rows-4 ${compact ? "gap-1.5" : "gap-2"} h-full`} role="group" aria-label="Number keys" onContextMenu={(e) => e.preventDefault()}>
       {ROWS.flat().map((k) => (
         <button
           key={k}
           type="button"
           tabIndex={-1}
           disabled={disabled}
-          aria-label={k === "SIL" ? "Son rakamı sil" : k}
+          aria-label={k === "BACKSPACE" ? "Delete the last digit" : k}
           onPointerDown={(e) => {
             if (!e.isTrusted || disabled) return;
             e.preventDefault();
@@ -101,7 +101,7 @@ export function Keypad({ onKey, disabled = false, compact = false }: { onKey: (k
           onPointerLeave={(e) => delete e.currentTarget.dataset.down}
           className={`hy-key ${k === "0" ? "col-span-2" : ""} ${compact ? "min-h-[40px]" : "min-h-[52px]"} rounded-xl flex items-center justify-center bg-surface border border-border text-foreground text-3xl font-semibold tabular-nums disabled:opacity-40`}
         >
-          {k === "SIL" ? <Delete size={30} aria-hidden /> : k}
+          {k === "BACKSPACE" ? <Delete size={30} aria-hidden /> : k}
         </button>
       ))}
     </div>

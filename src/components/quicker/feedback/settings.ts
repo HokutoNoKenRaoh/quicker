@@ -9,9 +9,9 @@ import { setVolume } from "./audio";
 
 export type FeedbackSettings = { sound: boolean; volume: number; effects: boolean; shake: boolean };
 
-const KEY = "quicker:geri-bildirim";
+const KEY = "quicker:feedback";
 /** The sound switch used to live on its own. */
-const OLD_SOUND_KEY = "quicker:ses";
+const OLD_SOUND_KEY = "quicker:sound";
 const DEFAULTS: FeedbackSettings = { sound: true, volume: 0.8, effects: true, shake: true };
 
 function read(key: string): FeedbackSettings {
