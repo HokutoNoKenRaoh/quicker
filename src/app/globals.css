@@ -1,0 +1,525 @@
+@import "tailwindcss";
+
+/* quicker's styles in one file: the colour tokens (light, and dark by the device's setting), the semantic classes the
+   components use (btn-*, card, field, badge-*, notice-*, press) and the game's own hy-* rules. */
+
+@theme {
+  --color-background: #ffffff;
+  --color-surface: #f9fafb;
+  --color-card: #ffffff;
+  --color-foreground: #111827;
+  --color-muted: #6b7280;
+  --color-border: #e5e7eb;
+  --color-primary: #111827;
+  --color-primary-foreground: #ffffff;
+  --color-accent: #2563eb;
+  --color-accent-foreground: #ffffff;
+  --color-success: #159946;
+  --color-warning: #c86d06;
+  --color-danger: #dc2626;
+  --color-danger-foreground: #ffffff;
+  --color-input: #ffffff;
+  --color-input-border: #8e929b;
+  --color-focus: #2563eb;
+  --color-selection: #bfdbfe;
+
+  /* Tints for badges and notices (dark mode computes them from the base colours). */
+  --color-success-soft: #f0fdf4;
+  --color-success-line: #bbf7d0;
+  --color-success-text: #15803d;
+  --color-warning-soft: #fefce8;
+  --color-warning-line: #fef08a;
+  --color-warning-text: #a16207;
+  --color-danger-soft: #fef2f2;
+  --color-danger-line: #fecaca;
+  --color-danger-text: #b91c1c;
+  --color-info-soft: #eff6ff;
+  --color-info-line: #bfdbfe;
+  --color-info-text: #1d4ed8;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+
+  --radius-card: 0px;
+  --radius-button: 0px;
+  --radius-input: 0px;
+  --shadow-card: none;
+}
+
+/* Style settings without a Tailwind utility of their own. */
+:root {
+  --theme-border-width: 1px;
+  --theme-heading-transform: none;
+  --theme-heading-letter-spacing: normal;
+  --theme-button-transform: none;
+  --theme-button-letter-spacing: normal;
+  --theme-background-image: none;
+  --theme-background-size: auto;
+  --theme-background-repeat: no-repeat;
+  color-scheme: light;
+}
+
+/* Dark mode follows the device setting. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #0b0f17;
+    --color-surface: #111827;
+    --color-card: #151c2a;
+    --color-foreground: #f3f4f6;
+    --color-muted: #9ca3af;
+    --color-border: #273244;
+    --color-primary: #f3f4f6;
+    --color-primary-foreground: #0b0f17;
+    --color-accent: #60a5fa;
+    --color-accent-foreground: #0b0f17;
+    --color-success: #4ade80;
+    --color-warning: #fbbf24;
+    --color-danger: #f87171;
+    --color-danger-foreground: #0b0f17;
+    --color-input: #111827;
+    --color-input-border: #5e6774;
+    --color-focus: #60a5fa;
+    --color-selection: #1e3a8a;
+    color-scheme: dark;
+    --color-success-soft: color-mix(in srgb, var(--color-success) 14%, var(--color-card));
+    --color-success-line: color-mix(in srgb, var(--color-success) 40%, var(--color-card));
+    --color-success-text: color-mix(in srgb, var(--color-success) 75%, var(--color-foreground));
+    --color-warning-soft: color-mix(in srgb, var(--color-warning) 14%, var(--color-card));
+    --color-warning-line: color-mix(in srgb, var(--color-warning) 40%, var(--color-card));
+    --color-warning-text: color-mix(in srgb, var(--color-warning) 75%, var(--color-foreground));
+    --color-danger-soft: color-mix(in srgb, var(--color-danger) 14%, var(--color-card));
+    --color-danger-line: color-mix(in srgb, var(--color-danger) 40%, var(--color-card));
+    --color-danger-text: color-mix(in srgb, var(--color-danger) 75%, var(--color-foreground));
+    --color-info-soft: color-mix(in srgb, var(--color-accent) 14%, var(--color-card));
+    --color-info-line: color-mix(in srgb, var(--color-accent) 40%, var(--color-card));
+    --color-info-text: color-mix(in srgb, var(--color-accent) 75%, var(--color-foreground));
+  }
+}
+
+@utility btn-primary {
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+  border-radius: var(--radius-button);
+  text-transform: var(--theme-button-transform);
+  letter-spacing: var(--theme-button-letter-spacing);
+  transition: opacity 150ms;
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+@utility btn-secondary {
+  background-color: transparent;
+  color: var(--color-foreground);
+  border: var(--theme-border-width, 1px) solid var(--color-primary);
+  border-radius: var(--radius-button);
+  text-transform: var(--theme-button-transform);
+  letter-spacing: var(--theme-button-letter-spacing);
+  transition: background-color 150ms;
+  &:hover:not(:disabled) {
+    background-color: var(--color-surface);
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+@utility btn-danger {
+  background-color: var(--color-danger);
+  color: var(--color-danger-foreground);
+  border-radius: var(--radius-button);
+  text-transform: var(--theme-button-transform);
+  letter-spacing: var(--theme-button-letter-spacing);
+  transition: opacity 150ms;
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+@utility card {
+  background-color: var(--color-card);
+  border: var(--theme-border-width, 1px) solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+@utility field {
+  background-color: var(--color-input);
+  color: var(--color-foreground);
+  border: var(--theme-border-width, 1px) solid var(--color-input-border);
+  border-radius: var(--radius-input);
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-focus);
+  }
+  &:disabled,
+  &[readonly] {
+    background-color: var(--color-surface);
+    color: var(--color-muted);
+  }
+}
+@utility badge-success {
+  background-color: var(--color-success-soft);
+  color: var(--color-success-text);
+}
+@utility badge-warning {
+  background-color: var(--color-warning-soft);
+  color: var(--color-warning-text);
+}
+@utility badge-danger {
+  background-color: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+@utility badge-info {
+  background-color: var(--color-info-soft);
+  color: var(--color-info-text);
+}
+@utility badge-neutral {
+  background-color: var(--color-surface);
+  color: var(--color-muted);
+}
+@utility notice-success {
+  background-color: var(--color-success-soft);
+  border: var(--theme-border-width, 1px) solid var(--color-success-line);
+  color: var(--color-success-text);
+}
+@utility notice-warning {
+  background-color: var(--color-warning-soft);
+  border: var(--theme-border-width, 1px) solid var(--color-warning-line);
+  color: var(--color-warning-text);
+}
+@utility notice-danger {
+  background-color: var(--color-danger-soft);
+  border: var(--theme-border-width, 1px) solid var(--color-danger-line);
+  color: var(--color-danger-text);
+}
+@utility notice-info {
+  background-color: var(--color-info-soft);
+  border: var(--theme-border-width, 1px) solid var(--color-info-line);
+  color: var(--color-info-text);
+}
+@utility press {
+  &:active:not(:disabled):not([aria-disabled="true"]) {
+    scale: 0.97;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::placeholder {
+    color: var(--color-muted);
+    opacity: 1;
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    overflow-wrap: break-word;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    text-transform: var(--theme-heading-transform);
+    letter-spacing: var(--theme-heading-letter-spacing);
+  }
+  button,
+  input[type="submit"],
+  input[type="button"] {
+    border-radius: var(--radius-button);
+  }
+  ::selection {
+    background-color: var(--color-selection);
+  }
+  *:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  th {
+    text-align: left;
+    font-weight: 600;
+  }
+  /* Every native button gets the same press feedback. */
+  button,
+  input[type="submit"],
+  input[type="button"],
+  [role="button"] {
+    @apply press;
+  }
+}
+
+/* Text fields on touch screens: iOS zooms the page in when a field under 16px gets focus. */
+@media (any-pointer: coarse) {
+  :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"], [type="submit"], [type="button"]), textarea, select) {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* The game (components/quicker). The "+75" that rises over an avatar and the short success tint of the question
+   card. Theme colours only. */
+@keyframes hy-float {
+  from {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -40px);
+  }
+}
+@keyframes hy-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes hy-flash {
+  from {
+    background-color: var(--color-success-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.hy-float {
+  animation: hy-float 1s ease-out forwards;
+}
+.hy-flash {
+  animation: hy-flash 0.35s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hy-float {
+    animation: hy-fade 0.6s ease-out forwards;
+    transform: translate(-50%, 0);
+  }
+  .hy-flash {
+    animation: none;
+  }
+}
+/* A wrong answer: the answer box flashes the danger colour once. */
+@keyframes hy-wrong {
+  from {
+    background-color: var(--color-danger-soft);
+    border-color: var(--color-danger);
+  }
+}
+.hy-wrong-box {
+  animation: hy-wrong 0.45s ease-out;
+}
+/* "Pas" (a sideways swipe or a double tap on the question card, Tab on a keyboard): the card takes the touch itself
+   (no scrolling, zoom, selection or callout), the new question slides in from the side the finger went (a fade with
+   reduced motion), and a bar in the answer box empties while input waits (SKIP_LOCK_MS, set inline). */
+.hy-pass-zone {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+@keyframes hy-pass-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--hy-pass-from, 24px));
+  }
+}
+@keyframes hy-pass-fade {
+  from {
+    opacity: 0;
+  }
+}
+.hy-pass-in {
+  display: inline-block;
+  animation: hy-pass-in 0.22s ease-out;
+}
+/* The warm-up countdown (each second pops in) and the start's "BAŞLA!" (about 600 ms); with reduced motion a fade. */
+@keyframes hy-count {
+  from {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+.hy-count {
+  animation: hy-count 0.35s ease-out;
+}
+@keyframes hy-go {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+.hy-go {
+  animation: hy-go 0.65s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hy-count {
+    animation: hy-fade-in 0.2s ease-out;
+  }
+  .hy-go {
+    animation: hy-fade 0.65s ease-out forwards;
+  }
+}
+@keyframes hy-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes hy-pass-lock {
+  to {
+    transform: scaleX(0);
+  }
+}
+.hy-pass-lock {
+  transform-origin: left;
+  animation: hy-pass-lock linear forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hy-pass-in {
+    animation-name: hy-pass-fade;
+  }
+}
+/* Rank pulse (feedback/effects.tsx): game signal colours from 1st (0) to last (4), the same in every theme (like the
+   avatar colours), a darker set for light backgrounds and a brighter one for dark; the game mixes neighbours in
+   OKLCH. No black for last place: it vanishes on dark and reads as "broken" on light. */
+:root {
+  --hy-rank-0: oklch(0.6 0.17 150);
+  --hy-rank-1: oklch(0.68 0.16 125);
+  --hy-rank-2: oklch(0.72 0.15 85);
+  --hy-rank-3: oklch(0.62 0.17 50);
+  --hy-rank-4: oklch(0.52 0.19 27);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hy-rank-0: oklch(0.72 0.17 150);
+    --hy-rank-1: oklch(0.8 0.16 125);
+    --hy-rank-2: oklch(0.82 0.15 85);
+    --hy-rank-3: oklch(0.7 0.17 50);
+    --hy-rank-4: oklch(0.6 0.19 27);
+  }
+}
+/* The edge glow: transparent in the middle (the question keeps full contrast), the colour only at the edges. */
+.hy-edge-glow {
+  background: radial-gradient(ellipse at center, transparent 58%, var(--hy-glow, transparent) 100%);
+}
+/* Combo tiers on the question card: a meter on its top edge, then a glow around it. */
+.hy-combo-meter {
+  transition: width 160ms ease-out, opacity 160ms ease-out;
+}
+.hy-tier-1 .hy-combo-meter {
+  box-shadow: 0 0 6px var(--color-primary);
+}
+.hy-tier-2 {
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-primary) 55%, transparent), 0 0 14px color-mix(in oklch, var(--color-primary) 35%, transparent);
+}
+.hy-tier-3 {
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-primary) 70%, transparent), 0 0 22px color-mix(in oklch, var(--color-primary) 45%, transparent);
+}
+/* Sparks from the player's avatar (combo tier 2+): each dot flies out along its own --dx / --dy. */
+@keyframes hy-spark {
+  from {
+    opacity: 0.9;
+    transform: translate(-50%, -50%);
+  }
+  to {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.4);
+  }
+}
+.hy-spark {
+  animation: hy-spark 0.5s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hy-spark {
+    display: none;
+  }
+}
+/* The on-screen keypad of touch screens (answer-pad.tsx): keys react on pointerdown, so no text selection, callout,
+   tap highlight or double-tap zoom; the pressed state is set from script for an instant response. */
+.hy-keypad {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.hy-key {
+  transition: transform 60ms ease-out, filter 60ms ease-out;
+}
+.hy-key[data-down] {
+  transform: scale(0.94);
+  filter: brightness(0.9);
+}
+/* The race track's finish line: a thin chequered band in the theme's border colour (no bright bar in dark mode). */
+.hy-finish {
+  background-image:
+    linear-gradient(45deg, var(--color-border) 25%, transparent 25%, transparent 75%, var(--color-border) 75%),
+    linear-gradient(45deg, var(--color-border) 25%, transparent 25%, transparent 75%, var(--color-border) 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 4px 4px;
+}
+/* The question on the card: as big as its width allows (a 3-number question in a narrow card still fits on one line).
+   --hy-q-em is the text's width in em (questionEm in quicker.tsx); browsers without container units keep the
+   plain size. */
+.hy-question {
+  container-type: inline-size;
+  --hy-q-max: 1.875rem;
+  line-height: 1.2;
+  /* The line is as tall as the largest text: a longer question (smaller text) doesn't change the card's height. */
+  min-height: calc(var(--hy-q-max) * 1.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+@media (min-width: 768px) {
+  .hy-question {
+    --hy-q-max: 2.25rem;
+  }
+}
+.hy-question > span {
+  display: inline-block;
+  font-size: var(--hy-q-max);
+  font-size: min(var(--hy-q-max), calc(100cqi / var(--hy-q-em, 4)));
+}
+/* The answer area's caret (blinks; steady with reduced motion). */
+@keyframes hy-caret {
+  50% {
+    opacity: 0;
+  }
+}
+.hy-caret {
+  animation: hy-caret 1s steps(1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hy-caret {
+    animation: none;
+  }
+}
